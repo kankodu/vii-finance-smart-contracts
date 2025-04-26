@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {ERC6909} from "lib/openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
+import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
+import {Context} from "lib/openzeppelin-contracts/contracts/utils/Context.sol";
+import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
+import {EVCUtil} from "lib/ethereum-vault-connector/src/utils/EVCUtil.sol";
+import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultConnector.sol";
+import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
+
+interface IPartialERC20 {
+    function balanceOf(address owner) external view returns (uint256);
+    function transfer(address to, uint256 amount) external returns (bool);
+}
+
+interface IERC721WrapperBase is IPartialERC20 {
+    function wrap(uint256 tokenId, address to) external;
+    function unwrap(uint256 tokenId, address to) external;
+}
+
+abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
+    uint256 public constant FULL_AMOUNT = 1000 ether;
+    uint256 public constant MAX_TOKENIDS_ALLOWED = 2;
+
+    IERC721 public immutable underlying;
+    IPriceOracle public immutable oracle;
+    address public immutable unitOfAccount;
+
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    mapping(address owner => EnumerableSet.UintSet) private _enabledTokenIds;
+
+    error MaximumAllowedTokenIdsReached();
+
+    event TokenIdEnabled(address indexed owner, uint256 indexed tokenId, bool enabled);
+
+    constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount) ERC6909() EVCUtil(_evc) {
+        evc = IEVC(_evc);
+        underlying = IERC721(_underlying);
+        oracle = IPriceOracle(_oracle);
+        unitOfAccount = _unitOfAccount;
+    }
+
+    ///@dev returns true if it wasn't already enabled, it was already enabled, it will return false
+    function enableTokenIdAsCollateral(uint256 tokenId) external returns (bool) {
+        address sender = _msgSender();
+        if (totalTokenIdsEnabledBy(sender) >= MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
+        emit TokenIdEnabled(sender, tokenId, true);
+        return _enabledTokenIds[_msgSender()].add(tokenId);
+    }
+
+    ///@dev returns true if it was enabled. if it was never enabled, it will return false
+    function disableTokenIdAsCollateral(uint256 tokenId) external returns (bool) {
+        emit TokenIdEnabled(_msgSender(), tokenId, false);
+        return _enabledTokenIds[_msgSender()].remove(tokenId);
+    }
+
+    function totalTokenIdsEnabledBy(address owner) public view returns (uint256) {
+        return _enabledTokenIds[owner].length();
+    }
+
+    function tokenIdOfOwnerByIndex(address owner, uint256 index) public view returns (uint256) {
+        return _enabledTokenIds[owner].at(index);
+    }
+
+    function _validatePosition(uint256 tokenId) internal view virtual;
+
+    function wrap(uint256 tokenId, address to) public {
+        _validatePosition(tokenId);
+        underlying.transferFrom(_msgSender(), address(this), tokenId);
+        _mint(to, tokenId, FULL_AMOUNT);
+    }
+
+    function _burnFrom(address from, uint256 tokenId, uint256 amount) internal virtual {
+        address sender = _msgSender();
+        if (from != sender && !isOperator(from, sender)) {
+            _spendAllowance(from, sender, tokenId, amount);
+        }
+        _burn(from, tokenId, amount);
+    }
+
+    ///@dev to get the entire tokenId, use this function
+    function unwrap(address from, uint256 tokenId, address to) public {
+        _burnFrom(from, tokenId, FULL_AMOUNT);
+        underlying.transferFrom(address(this), to, tokenId);
+    }
+
+    function _unwrap(address to, uint256 tokenId, uint256 amount) internal virtual;
+
+    function unwrap(address from, uint256 tokenId, uint256 amount, address to) public {
+        _burnFrom(from, tokenId, amount);
+        _unwrap(to, tokenId, amount);
+    }
+
+    function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view virtual returns (uint256);
+
+    function balanceOf(address owner) public view returns (uint256 totalValue) {
+        uint256 totalTokenIds = totalTokenIdsEnabledBy(owner);
+
+        for (uint256 i = 0; i < totalTokenIds; i++) {
+            uint256 tokenId = tokenIdOfOwnerByIndex(owner, i);
+            totalValue += _calculateValueOfTokenId(tokenId, balanceOf(owner, tokenId));
+        }
+    }
+
+    ///@dev no need to check if sender is being liquidated, send can choose to do this at any time
+    function transfer(address to, uint256 amount) public returns (bool) {
+        address sender = _msgSender();
+        uint256 currentBalance = balanceOf(sender);
+
+        uint256 totalTokenIds = totalTokenIdsEnabledBy(sender);
+
+        for (uint256 i = 0; i < totalTokenIds; i++) {
+            _transfer(sender, to, tokenIdOfOwnerByIndex(sender, i), FULL_AMOUNT * amount / currentBalance); //this concludes the liquidation. The liquidator can come back do whatever they want with the ERC6909 tokens
+        }
+        return true;
+    }
+
+    function _update(address from, address to, uint256 id, uint256 amount) internal virtual override {
+        super._update(from, to, id, amount);
+        evc.requireAccountStatusCheck(from);
+    }
+
+    function _msgSender() internal view virtual override(Context, EVCUtil) returns (address) {
+        return EVCUtil._msgSender();
+    }
+
+    function getQuote(uint256 inAmount, address base) public view returns (uint256 outAmount) {
+        if (evc.isControlCollateralInProgress()) {
+            // mid-point price
+            outAmount = oracle.getQuote(inAmount, base, unitOfAccount);
+        } else {
+            // ask price for liability
+            (, outAmount) = oracle.getQuotes(inAmount, base, unitOfAccount);
+        }
+    }
+}

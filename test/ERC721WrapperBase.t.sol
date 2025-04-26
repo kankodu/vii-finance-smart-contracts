@@ -1,0 +1,132 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {Test, console} from "forge-std/Test.sol";
+import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
+import {EthereumVaultConnector} from "lib/ethereum-vault-connector/src/EthereumVaultConnector.sol";
+import {ERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+
+contract ERC721WrapperBaseMock is ERC721WrapperBase {
+    constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount)
+        ERC721WrapperBase(_evc, _underlying, _oracle, _unitOfAccount)
+    {}
+    function _validatePosition(uint256 tokenId) internal view override {}
+    function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {}
+
+    function _calculateValueOfTokenId(uint256, uint256 amount) internal pure override returns (uint256) {
+        return amount; // each tokenId is worth FULL_AMOUNT
+    }
+}
+
+contract ERC721Mint is ERC721 {
+    uint256 public tokenIdCounter;
+
+    constructor() ERC721("ERC721Mint", "MINT") {}
+
+    function mint(address to, uint256 tokenId) external {
+        _mint(to, tokenId);
+    }
+}
+
+contract ERC721WrapperBaseTest is Test {
+    ERC721WrapperBaseMock public wrapper;
+    EthereumVaultConnector public evc = new EthereumVaultConnector();
+    ERC721Mint public underlying = new ERC721Mint();
+
+    function setUp() public {
+        wrapper = new ERC721WrapperBaseMock(address(evc), address(underlying), address(0), address(0));
+    }
+
+    function enableTokenIdAsCollateral(uint256 tokenId) public {
+        uint256 totalTokenIdsEnabledBefore = wrapper.totalTokenIdsEnabledBy(address(this));
+        //it should return TokenIdEnabled event
+        vm.expectEmit();
+
+        emit ERC721WrapperBase.TokenIdEnabled(address(this), tokenId, true);
+
+        assertTrue(wrapper.enableTokenIdAsCollateral(tokenId));
+        assertEq(wrapper.totalTokenIdsEnabledBy(address(this)), totalTokenIdsEnabledBefore + 1);
+        assertEq(wrapper.tokenIdOfOwnerByIndex(address(this), totalTokenIdsEnabledBefore), tokenId);
+    }
+
+    function test_enableTokenIdAsCollateral(uint256 tokenId) public {
+        enableTokenIdAsCollateral(tokenId);
+    }
+
+    function test_enableTokenIdAsCollateralReturnsFalseIfAlreadyAdded(uint256 tokenId) public {
+        enableTokenIdAsCollateral(tokenId);
+
+        //if tokenId is already enabled, it will return false
+        assertFalse(wrapper.enableTokenIdAsCollateral(tokenId));
+    }
+
+    function test_max_allowed_token_ids() public {
+        //enabling more than MAX_TOKENIDS_ALLOWED should revert
+        for (uint256 i = 0; i < wrapper.MAX_TOKENIDS_ALLOWED(); i++) {
+            uint256 tokenId = i;
+            enableTokenIdAsCollateral(tokenId);
+        }
+
+        vm.expectRevert(ERC721WrapperBase.MaximumAllowedTokenIdsReached.selector);
+        wrapper.enableTokenIdAsCollateral(1000);
+    }
+
+    function disableTokeIdsAsCollateral(uint256 tokenId) public {
+        //returns false if it was never enabled
+        assertFalse(wrapper.disableTokenIdAsCollateral(tokenId));
+        enableTokenIdAsCollateral(tokenId);
+        uint256 totalTokenIdsEnabledBefore = wrapper.totalTokenIdsEnabledBy(address(this));
+        vm.expectEmit();
+
+        emit ERC721WrapperBase.TokenIdEnabled(address(this), tokenId, false);
+
+        assertTrue(wrapper.disableTokenIdAsCollateral(tokenId));
+        assertEq(wrapper.totalTokenIdsEnabledBy(address(this)), totalTokenIdsEnabledBefore - 1);
+    }
+
+    function test_disableTokenIdAsCollateral(uint256 tokenId) public {
+        disableTokeIdsAsCollateral(tokenId);
+    }
+
+    function wrap(uint256 tokenId, address to) public {
+        underlying.mint(address(this), tokenId);
+        underlying.approve(address(wrapper), tokenId);
+
+        wrapper.wrap(tokenId, to);
+
+        assertEq(underlying.ownerOf(tokenId), address(wrapper));
+        assertEq(wrapper.balanceOf(to, tokenId), wrapper.FULL_AMOUNT());
+    }
+
+    function test_wrap(uint256 tokenId) public {
+        wrap(tokenId, address(this));
+    }
+
+    function unwrap(uint256 tokenId, address from, address to) public {
+        wrapper.unwrap(from, tokenId, to);
+
+        assertEq(underlying.ownerOf(tokenId), to);
+        assertEq(wrapper.balanceOf(from, tokenId), 0);
+    }
+
+    function test_unwrap(uint256 tokenId) public {
+        wrap(tokenId, address(this));
+
+        unwrap(tokenId, address(this), address(this));
+    }
+
+    function test_balanceOf() public {
+        wrap(1, address(this));
+        wrap(2, address(this));
+
+        wrapper.enableTokenIdAsCollateral(1);
+        assertEq(wrapper.balanceOf(address(this)), wrapper.FULL_AMOUNT());
+
+        wrapper.enableTokenIdAsCollateral(2);
+        assertEq(wrapper.balanceOf(address(this)), 2 * wrapper.FULL_AMOUNT());
+
+        //if user splits tokenId then the balance should be be decreased as well
+        wrapper.transfer(address(1), wrapper.FULL_AMOUNT());
+        assertEq(wrapper.balanceOf(address(this)), wrapper.FULL_AMOUNT());
+    }
+}
