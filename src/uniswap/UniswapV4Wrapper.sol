@@ -12,6 +12,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
+import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
 
 contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolId public immutable poolId;
@@ -82,7 +83,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     function _syncFeesOwned(uint256 tokenId) internal {
-        (uint256 amount0, uint256 amount1) = _decreaseLiquidityAndRecordChange(tokenId, 0, address(this));
+        (uint256 amount0, uint256 amount1) = _decreaseLiquidityAndRecordChange(tokenId, 0, ActionConstants.MSG_SENDER);
 
         tokensOwed[tokenId].amount0Owed += amount0;
         tokensOwed[tokenId].amount1Owed += amount1;
@@ -122,7 +123,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
             feeGrowthInside0X128, feeGrowthInside1X128, feeGrowthInside0LastX128, feeGrowthInside1LastX128, liquidity
         );
 
-        amount0Total = amount0Principal + feesOwed0;
-        amount1Total = amount1Principal + feesOwed1;
+        amount0Total = amount0Principal + feesOwed0 + tokensOwed[tokenId].amount0Owed;
+        amount1Total = amount1Principal + feesOwed1 + tokensOwed[tokenId].amount1Owed;
     }
 }
