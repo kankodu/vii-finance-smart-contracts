@@ -64,7 +64,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         params[0] = abi.encode(tokenId, liquidity, uint128(0), uint128(0), bytes(""));
         params[1] = abi.encode(tokenId, address(this), recipient);
 
-        IPositionManager(address(underlying)).modifyLiquidities(actions, block.timestamp);
+        IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
 
     function _decreaseLiquidityAndRecordChange(uint256 tokenId, uint128 liquidity, address recipient)

@@ -4,4 +4,9 @@ pragma solidity ^0.8.13;
 library Addresses {
     address constant POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address constant POSITION_MANAGER = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+    address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+    address constant EULER_USDC_VAULT = 0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9;
+    address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 }

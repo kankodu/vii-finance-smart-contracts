@@ -10,6 +10,7 @@ import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelp
 
 contract UniswapV3Wrapper is ERC721WrapperBase {
     address public immutable poolAddress;
+    IUniswapV3Factory public immutable factory;
 
     error InvalidPoolAddress();
 
@@ -23,13 +24,14 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         address _poolAddress
     ) ERC721WrapperBase(_evc, _nonFungiblePositionManager, _oracle, _unitOfAccount) {
         poolAddress = _poolAddress;
+        factory = IUniswapV3Factory(INonfungiblePositionManager(address(underlying)).factory());
     }
 
     function _validatePosition(uint256 tokenId) internal view override {
         (,, address token0, address token1, uint24 fee,,,,,,,) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
-        ///@dev external call is not really required to get the pool address
-        address pool = IUniswapV3Factory(poolAddress).getPool(token0, token1, fee);
+        ///@dev external calls are not really required to get the pool address
+        address pool = factory.getPool(token0, token1, fee);
         if (pool != poolAddress) revert InvalidPoolAddress();
     }
 
@@ -65,7 +67,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
         (,, address token0, address token1, uint24 fee,,,,,,,) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
-        IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(poolAddress).getPool(token0, token1, fee));
+        IUniswapV3Pool pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
 
         (uint160 sqrtRatioX96,,,,,,) = pool.slot0();
 

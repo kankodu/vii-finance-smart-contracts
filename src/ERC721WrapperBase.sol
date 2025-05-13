@@ -119,7 +119,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
 
     function _update(address from, address to, uint256 id, uint256 amount) internal virtual override {
         super._update(from, to, id, amount);
-        evc.requireAccountStatusCheck(from);
+        if (from != address(0)) evc.requireAccountStatusCheck(from);
     }
 
     function _msgSender() internal view virtual override(Context, EVCUtil) returns (address) {
