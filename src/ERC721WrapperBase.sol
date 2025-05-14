@@ -43,7 +43,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     }
 
     ///@dev returns true if it wasn't already enabled, it was already enabled, it will return false
-    function enableTokenIdAsCollateral(uint256 tokenId) external returns (bool) {
+    function enableTokenIdAsCollateral(uint256 tokenId) external callThroughEVC returns (bool) {
         address sender = _msgSender();
         if (totalTokenIdsEnabledBy(sender) >= MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
         emit TokenIdEnabled(sender, tokenId, true);
@@ -51,7 +51,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     }
 
     ///@dev returns true if it was enabled. if it was never enabled, it will return false
-    function disableTokenIdAsCollateral(uint256 tokenId) external returns (bool) {
+    function disableTokenIdAsCollateral(uint256 tokenId) external callThroughEVC returns (bool) {
         emit TokenIdEnabled(_msgSender(), tokenId, false);
         return _enabledTokenIds[_msgSender()].remove(tokenId);
     }
@@ -66,7 +66,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
 
     function _validatePosition(uint256 tokenId) internal view virtual;
 
-    function wrap(uint256 tokenId, address to) public {
+    function wrap(uint256 tokenId, address to) public callThroughEVC {
         _validatePosition(tokenId);
         underlying.transferFrom(_msgSender(), address(this), tokenId);
         _mint(to, tokenId, FULL_AMOUNT);
@@ -81,14 +81,14 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     }
 
     ///@dev to get the entire tokenId, use this function
-    function unwrap(address from, uint256 tokenId, address to) public {
+    function unwrap(address from, uint256 tokenId, address to) public callThroughEVC {
         _burnFrom(from, tokenId, FULL_AMOUNT);
         underlying.transferFrom(address(this), to, tokenId);
     }
 
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal virtual;
 
-    function unwrap(address from, uint256 tokenId, uint256 amount, address to) public {
+    function unwrap(address from, uint256 tokenId, uint256 amount, address to) public callThroughEVC {
         _burnFrom(from, tokenId, amount);
         _unwrap(to, tokenId, amount);
     }
@@ -105,7 +105,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     }
 
     ///@dev no need to check if sender is being liquidated, send can choose to do this at any time
-    function transfer(address to, uint256 amount) public returns (bool) {
+    function transfer(address to, uint256 amount) public callThroughEVC returns (bool) {
         address sender = _msgSender();
         uint256 currentBalance = balanceOf(sender);
 
@@ -134,5 +134,25 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
             // ask price for liability
             (, outAmount) = oracle.getQuotes(inAmount, base, unitOfAccount);
         }
+    }
+
+    function transfer(address receiver, uint256 id, uint256 amount)
+        public
+        virtual
+        override
+        callThroughEVC
+        returns (bool)
+    {
+        return super.transfer(receiver, id, amount);
+    }
+
+    function transferFrom(address sender, address receiver, uint256 id, uint256 amount)
+        public
+        virtual
+        override
+        callThroughEVC
+        returns (bool)
+    {
+        return super.transferFrom(sender, receiver, id, amount);
     }
 }
