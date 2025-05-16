@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {UniswapV4Wrapper} from "src/uniswap/UniswapV4Wrapper.sol";
@@ -27,71 +26,26 @@ import {IEulerRouter} from "lib/euler-interfaces/interfaces/IEulerRouter.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/interfaces/IERC721.sol";
 import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultConnector.sol";
+import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
+import {UniswapBaseTest} from "test/uniswap/UniswapBase.t.sol";
 
-contract Token is ERC20 {
-    constructor() ERC20("Token", "TKN") {}
-
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
-
-contract UniswapV4WrapperTest is Test {
-    uint256 constant INTERNAL_DEBT_PRECISION_SHIFT = 31;
-
-    UniswapV4Wrapper public wrapper;
-    IPositionManager public positionManager = IPositionManager(Addresses.POSITION_MANAGER);
-    IPoolManager public poolManager = IPoolManager(Addresses.POOL_MANAGER);
-    IEVC public evc = IEVC(Addresses.EVC);
-    IEVault public eVault = IEVault(Addresses.EULER_USDC_VAULT);
-    IPermit2 public permit2 = IPermit2(Addresses.PERMIT2);
-
-    IPriceOracle oracle;
-    address public unitOfAccount;
-    IERC20 asset;
-
-    Currency public currency0;
-    Currency public currency1;
-
-    uint256 unit0;
-    uint256 unit1;
+contract UniswapV4WrapperTest is Test, UniswapBaseTest {
+    using StateLibrary for IPoolManager;
 
     uint24 constant FEE = 10; //0.001% fee
     int24 constant TICK_SPACING = 1;
+    IPositionManager public positionManager = IPositionManager(Addresses.POSITION_MANAGER);
+    IPoolManager public poolManager = IPoolManager(Addresses.POOL_MANAGER);
+    IPermit2 public permit2 = IPermit2(Addresses.PERMIT2);
+
     PoolKey public poolKey;
     PoolId public poolId;
+    Currency currency0;
+    Currency currency1;
 
-    address borrower = makeAddr("borrower");
-    address liquidator = makeAddr("liquidator");
-
-    uint256 tokenId;
-
-    using StateLibrary for IPoolManager;
-
-    function setUp() public {
-        string memory rpc_url = vm.envOr("MAINNET_RPC_URL", string("https://eth.llamarpc.com"));
-        vm.createSelectFork(rpc_url, 22473612);
-
-        unitOfAccount = eVault.unitOfAccount();
-        oracle = IPriceOracle(eVault.oracle());
-        asset = IERC20(eVault.asset());
-
-        Token tokenA = Token(Addresses.USDC);
-        Token tokenB = Token(Addresses.USDT);
-
-        if (address(tokenA) < address(tokenB)) {
-            currency0 = Currency.wrap(address(tokenA));
-            currency1 = Currency.wrap(address(tokenB));
-
-            unit0 = 10 ** IERC20Metadata(address(tokenA)).decimals();
-            unit1 = 10 ** IERC20Metadata(address(tokenB)).decimals();
-        } else {
-            currency0 = Currency.wrap(address(tokenB));
-            currency1 = Currency.wrap(address(tokenA));
-
-            unit0 = 10 ** IERC20Metadata(address(tokenB)).decimals();
-            unit1 = 10 ** IERC20Metadata(address(tokenA)).decimals();
-        }
+    function deployWrapper() internal override returns (ERC721WrapperBase) {
+        currency0 = Currency.wrap(address(token0));
+        currency1 = Currency.wrap(address(token1));
 
         poolKey = PoolKey({
             currency0: currency0,
@@ -102,10 +56,18 @@ contract UniswapV4WrapperTest is Test {
         });
         poolId = poolKey.toId();
 
-        wrapper = new UniswapV4Wrapper(address(evc), address(positionManager), address(oracle), unitOfAccount, poolId);
+        ERC721WrapperBase uniswapV4Wrapper =
+            new UniswapV4Wrapper(address(evc), address(positionManager), address(oracle), unitOfAccount, poolId);
 
-        deal(address(currencyToToken(currency0)), borrower, 1000 * unit0);
-        deal(address(currencyToToken(currency1)), borrower, 1000 * unit1);
+        return uniswapV4Wrapper;
+    }
+
+    function currencyToToken(Currency currency) internal pure returns (IERC20) {
+        return IERC20(address(uint160(currency.toId())));
+    }
+
+    function setUp() public override {
+        super.setUp();
 
         startHoax(borrower);
         SafeERC20.forceApprove(currencyToToken(currency0), address(permit2), type(uint256).max);
@@ -126,32 +88,6 @@ contract UniswapV4WrapperTest is Test {
         );
 
         tokenId = mintPosition(poolKey, TickMath.MIN_TICK, TickMath.MAX_TICK, 100 * unit0, 100 * unit1, borrower);
-
-        FixedRateOracle fixedRateOracle = new FixedRateOracle(
-            address(wrapper),
-            unitOfAccount,
-            1e18 // 1:1 price, This is because we know unitOfAccount is usd and it's decimals are 18, it should be dependent on decimals of unitOfAccount
-        );
-
-        address oracleGovernor = IEulerRouter(address(oracle)).governor();
-        startHoax(oracleGovernor);
-        IEulerRouter(address(oracle)).govSetConfig(address(wrapper), unitOfAccount, address(fixedRateOracle));
-
-        address governorAdmin = eVault.governorAdmin();
-        startHoax(governorAdmin);
-        eVault.setLTV(address(wrapper), 0.9e4, 0.9e4, 0);
-
-        labelEverything();
-    }
-
-    function currencyToToken(Currency currency) internal pure returns (Token) {
-        return Token(address(uint160(currency.toId())));
-    }
-
-    function labelEverything() public {
-        vm.label(address(positionManager), "PositionManager");
-        vm.label(address(poolManager), "PoolManager");
-        vm.label(address(wrapper), "Wrapper");
     }
 
     function mintPosition(
@@ -189,112 +125,11 @@ contract UniswapV4WrapperTest is Test {
         positionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
 
-    function test_BasicBorrow() public {
-        startHoax(borrower);
-        IERC721(address(positionManager)).approve(address(wrapper), tokenId);
-        wrapper.enableTokenIdAsCollateral(tokenId);
-        wrapper.wrap(tokenId, borrower);
-
-        uint256 assetBalanceBefore = asset.balanceOf(borrower);
-        uint256 totalBorrowsBefore = eVault.totalBorrows();
-        uint256 totalBorrowsExactBefore = eVault.totalBorrowsExact();
-
-        vm.expectRevert(IEVault.E_ControllerDisabled.selector);
-        eVault.borrow(5e6, borrower);
-
-        evc.enableController(borrower, address(eVault));
-
-        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
-        eVault.borrow(5e6, borrower);
-
-        // still no borrow hence possible to disable controller
-        assertEq(evc.isControllerEnabled(borrower, address(eVault)), true);
-        eVault.disableController();
-        assertEq(evc.isControllerEnabled(borrower, address(eVault)), false);
-        evc.enableController(borrower, address(eVault));
-        assertEq(evc.isControllerEnabled(borrower, address(eVault)), true);
-
-        evc.enableCollateral(borrower, address(wrapper));
-
-        eVault.borrow(5e6, borrower);
-        assertEq(asset.balanceOf(borrower) - assetBalanceBefore, 5e6);
-        assertEq(eVault.debtOf(borrower), 5e6);
-        assertEq(eVault.debtOfExact(borrower), 5e6 << INTERNAL_DEBT_PRECISION_SHIFT);
-
-        assertEq(eVault.totalBorrows() - totalBorrowsBefore, 5e6);
-        assertEq(eVault.totalBorrowsExact() - totalBorrowsExactBefore, 5e6 << INTERNAL_DEBT_PRECISION_SHIFT);
-
-        // no longer possible to disable controller
-        vm.expectRevert(IEVault.E_OutstandingDebt.selector);
-        eVault.disableController();
-
-        // Should be able to borrow up to 9, so this should fail:
-
-        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
-        eVault.borrow(180e6, borrower);
-
-        // Disable collateral should fail
-
-        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
-        evc.disableCollateral(borrower, address(wrapper));
-
-        //unwrap should fail
-        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
-        wrapper.unwrap(borrower, tokenId, borrower);
-
-        // Repay
-
-        asset.approve(address(eVault), type(uint256).max);
-        eVault.repay(type(uint256).max, borrower);
-
-        evc.disableCollateral(borrower, address(wrapper));
-        assertEq(evc.getCollaterals(borrower).length, 0);
-
-        eVault.disableController();
-        assertEq(evc.getControllers(borrower).length, 0);
+    function test_BasicBorrowV4() public {
+        borrowTest();
     }
 
-    function test_basicLiquidation_all_collateral() public {
-        startHoax(borrower);
-        IERC721(address(positionManager)).approve(address(wrapper), tokenId);
-        wrapper.enableTokenIdAsCollateral(tokenId);
-        wrapper.wrap(tokenId, borrower);
-
-        evc.enableCollateral(borrower, address(wrapper));
-        evc.enableController(borrower, address(eVault));
-
-        eVault.borrow(5e6, borrower);
-
-        vm.warp(block.timestamp + eVault.liquidationCoolOffTime());
-
-        (uint256 maxRepay, uint256 yield) = eVault.checkLiquidation(liquidator, borrower, address(wrapper));
-        assertEq(maxRepay, 0);
-        assertEq(yield, 0);
-
-        startHoax(IEulerRouter(address(oracle)).governor());
-        IEulerRouter(address(oracle)).govSetConfig(
-            address(wrapper),
-            unitOfAccount,
-            address(
-                new FixedRateOracle(
-                    address(wrapper),
-                    unitOfAccount,
-                    0.25e17 //in the actual conditions this price will always be the fixed 1:1, the balanceOf(user) will change as the price of the underlying tokens change and the position becomes liquidateable
-                )
-            )
-        );
-
-        startHoax(liquidator);
-        (maxRepay, yield) = eVault.checkLiquidation(liquidator, borrower, address(wrapper));
-
-        evc.enableCollateral(liquidator, address(wrapper));
-        evc.enableController(liquidator, address(eVault));
-        wrapper.enableTokenIdAsCollateral(tokenId);
-        eVault.liquidate(borrower, address(wrapper), type(uint256).max, 0);
-
-        //we know this a full liquidation so the current balanceOf of the borrower should be 0
-        assertEq(wrapper.balanceOf(borrower), 0);
-        //liquidator must have gotten all of the shares
-        assertEq(wrapper.balanceOf(liquidator, tokenId), 1000 ether);
+    function test_basicLiquidationV4() public {
+        basicLiquidationTest();
     }
 }
