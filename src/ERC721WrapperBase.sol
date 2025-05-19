@@ -104,7 +104,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
         }
     }
 
-    ///@dev no need to check if sender is being liquidated, send can choose to do this at any time
+    ///@dev no need to check if sender is being liquidated, sender can choose to do this at any time
     function transfer(address to, uint256 amount) public callThroughEVC returns (bool) {
         address sender = _msgSender();
         uint256 currentBalance = balanceOf(sender);
@@ -112,7 +112,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
         uint256 totalTokenIds = totalTokenIdsEnabledBy(sender);
 
         for (uint256 i = 0; i < totalTokenIds; i++) {
-            _transfer(sender, to, tokenIdOfOwnerByIndex(sender, i), FULL_AMOUNT * amount / currentBalance); //this concludes the liquidation. The liquidator can come back do whatever they want with the ERC6909 tokens
+            _transfer(sender, to, tokenIdOfOwnerByIndex(sender, i), FULL_AMOUNT * amount / currentBalance); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
         }
         return true;
     }
