@@ -40,6 +40,8 @@ contract UniswapBaseTest is Test {
 
     uint256 tokenId;
 
+    uint256 constant FULL_AMOUNT = 1000 ether;
+
     function deployWrapper() internal virtual returns (ERC721WrapperBase) {}
 
     function setUp() public virtual {

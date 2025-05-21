@@ -198,14 +198,10 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
         assertGt(outputAmount, 0);
     }
 
-    function test_fuzz_total_positionValue(ModifyLiquidityParams memory params) public {
-        // function test_fuzz_total_positionValue() public {
-        //     ModifyLiquidityParams memory params = ModifyLiquidityParams({
-        //         tickLower: TickMath.MIN_TICK + 1,
-        //         tickUpper: TickMath.MAX_TICK - 1,
-        //         liquidityDelta: -19999,
-        //         salt: bytes32(0)
-        //     });
+    function boundLiquidityParamsAndMint(ModifyLiquidityParams memory params)
+        internal
+        returns (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent)
+    {
         params.liquidityDelta = bound(params.liquidityDelta, 10e18, 10_000e18);
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
         params = Fuzzers.createFuzzyLiquidityParams(poolKey, params, sqrtRatioX96);
@@ -219,10 +215,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
 
         startHoax(borrower);
 
-        uint256 amount0Spent;
-        uint256 amount1Spent;
-
-        (tokenId, amount0Spent, amount1Spent) = mintPosition(
+        (tokenIdMinted, amount0Spent, amount1Spent) = mintPosition(
             poolKey,
             params.tickLower,
             params.tickUpper,
@@ -231,9 +224,51 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
             uint256(params.liquidityDelta),
             borrower
         );
+    }
+
+    function testFuzzWrapAndUnwrap(ModifyLiquidityParams memory params) public {
+        (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent) = boundLiquidityParamsAndMint(params);
+
+        startHoax(borrower);
+        wrapper.underlying().approve(address(wrapper), tokenIdMinted);
+        wrapper.wrap(tokenIdMinted, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenIdMinted);
+
+        uint256 amount0InUnitOfAccount = wrapper.getQuote(amount0Spent, address(token0));
+        uint256 amount1InUnitOfAccount = wrapper.getQuote(amount1Spent, address(token1));
+
+        uint256 expectedBalance = (amount0InUnitOfAccount + amount1InUnitOfAccount);
+
+        assertApproxEqAbs(wrapper.balanceOf(borrower), expectedBalance, 1 ether);
+
+        uint256 amount0BalanceBefore = IERC20(token0).balanceOf(borrower);
+        uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
+
+        //unwrap to get the underlying tokens back
+        wrapper.unwrap(borrower, tokenIdMinted, FULL_AMOUNT, borrower);
+
+        assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
+        assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
+    }
+
+    function testFuzzTotalPositionValue(ModifyLiquidityParams memory params) public {
+        // function test_fuzz_total_positionValue() public {
+        //     ModifyLiquidityParams memory params = ModifyLiquidityParams({
+        //         tickLower: TickMath.MIN_TICK + 1,
+        //         tickUpper: TickMath.MAX_TICK - 1,
+        //         liquidityDelta: -19999,
+        //         salt: bytes32(0)
+        //     });
+
+        uint256 amount0Spent;
+        uint256 amount1Spent;
+
+        (tokenId, amount0Spent, amount1Spent) = boundLiquidityParamsAndMint(params);
 
         wrapper.underlying().approve(address(wrapper), tokenId);
         wrapper.wrap(tokenId, borrower);
+
+        (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
 
         (uint256 token0Principal, uint256 token1Principal) =
             MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(poolManager, sqrtRatioX96, tokenId);

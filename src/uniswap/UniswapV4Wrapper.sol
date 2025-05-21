@@ -56,13 +56,15 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
+        (PoolKey memory poolKey,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
+
         bytes memory actions = new bytes(2);
         actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
         actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
 
         bytes[] memory params = new bytes[](2);
         params[0] = abi.encode(tokenId, liquidity, uint128(0), uint128(0), bytes(""));
-        params[1] = abi.encode(tokenId, address(this), recipient);
+        params[1] = abi.encode(poolKey.currency0, poolKey.currency1, recipient);
 
         IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
