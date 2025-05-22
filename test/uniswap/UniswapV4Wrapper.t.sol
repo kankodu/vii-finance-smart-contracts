@@ -33,11 +33,23 @@ import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.so
 import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
 import {TestRouter, SwapParams} from "lib/v4-periphery/test/shared/TestRouter.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
+import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, PoolId _poolId)
         UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolId)
     {}
+
+    function syncFeesOwned(uint256 tokenId) external returns (uint256 actualFees0, uint256 actualFees1) {
+        uint256 amount0OwedBefore = tokensOwed[tokenId].amount0Owed;
+        uint256 amount1OwedBefore = tokensOwed[tokenId].amount1Owed;
+
+        _syncFeesOwned(tokenId);
+
+        return
+            (tokensOwed[tokenId].amount0Owed - amount0OwedBefore, tokensOwed[tokenId].amount1Owed - amount1OwedBefore);
+    }
 
     function totalPositionValue(IPoolManager poolManager, uint160 sqrtRatioX96, uint256 tokenId)
         external
@@ -249,6 +261,46 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
+    }
+
+    function testFuzzFeeMath(int256 liquidityDelta, uint256 swapAmount) public {
+        // liquidityDelta = -19999;
+        ModifyLiquidityParams memory params = ModifyLiquidityParams({
+            tickLower: TickMath.MIN_TICK + 1,
+            tickUpper: TickMath.MAX_TICK - 1,
+            liquidityDelta: liquidityDelta,
+            salt: bytes32(0)
+        });
+
+        swapAmount = bound(swapAmount, 10_000 * unit0, 100_000 * unit0);
+        // swapAmount = 100_00000 * unit0;
+
+        (tokenId,,) = boundLiquidityParamsAndMint(params);
+
+        startHoax(borrower);
+        wrapper.underlying().approve(address(wrapper), tokenId);
+        wrapper.wrap(tokenId, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenId);
+
+        //swap so that some fees are generated
+        swapExactInput(address(token0), address(token1), swapAmount);
+
+        PositionInfo position = positionManager.positionInfo(tokenId);
+
+        (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = poolManager
+            .getPositionInfo(poolId, address(positionManager), position.tickLower(), position.tickUpper(), bytes32(tokenId));
+
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            poolManager.getFeeGrowthInside(poolId, position.tickLower(), position.tickUpper());
+
+        (uint256 expectedFees0, uint256 expectedFees1) = UniswapPositionValueHelper.feesOwed(
+            feeGrowthInside0X128, feeGrowthInside1X128, feeGrowthInside0LastX128, feeGrowthInside1LastX128, liquidity
+        );
+
+        (uint256 actualFees0, uint256 actualFees1) = MockUniswapV4Wrapper(address(wrapper)).syncFeesOwned(tokenId);
+
+        assertEq(actualFees0, expectedFees0);
+        assertEq(actualFees1, expectedFees1);
     }
 
     function testFuzzTotalPositionValue(ModifyLiquidityParams memory params) public {
