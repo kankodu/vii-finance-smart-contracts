@@ -7,6 +7,7 @@ import {IUniswapV3Factory} from "lib/v3-core/contracts/interfaces/IUniswapV3Fact
 import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
+import {console} from "forge-std/console.sol";
 
 contract UniswapV3Wrapper is ERC721WrapperBase {
     address public immutable poolAddress;
@@ -99,7 +100,10 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
             uint128 tokensOwed1
         ) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
+        console.log("tokensOwed0", tokensOwed0);
+
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(pool, tickLower, tickUpper);
+        console.log("feeGrowthInside0X128", feeGrowthInside0X128);
 
         (uint256 amount0Principal, uint256 amount1Principal) =
             UniswapPositionValueHelper.principal(sqrtRatioX96, tickLower, tickUpper, liquidity);
@@ -122,17 +126,19 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         (,, uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128,,,,) = pool.ticks(tickLower);
         (,, uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128,,,,) = pool.ticks(tickUpper);
 
-        if (tickCurrent < tickLower) {
-            feeGrowthInside0X128 = lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;
-            feeGrowthInside1X128 = lowerFeeGrowthOutside1X128 - upperFeeGrowthOutside1X128;
-        } else if (tickCurrent < tickUpper) {
-            uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
-            uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
-            feeGrowthInside0X128 = feeGrowthGlobal0X128 - lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;
-            feeGrowthInside1X128 = feeGrowthGlobal1X128 - lowerFeeGrowthOutside1X128 - upperFeeGrowthOutside1X128;
-        } else {
-            feeGrowthInside0X128 = upperFeeGrowthOutside0X128 - lowerFeeGrowthOutside0X128;
-            feeGrowthInside1X128 = upperFeeGrowthOutside1X128 - lowerFeeGrowthOutside1X128;
+        unchecked {
+            if (tickCurrent < tickLower) {
+                feeGrowthInside0X128 = lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;
+                feeGrowthInside1X128 = lowerFeeGrowthOutside1X128 - upperFeeGrowthOutside1X128;
+            } else if (tickCurrent < tickUpper) {
+                uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
+                uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
+                feeGrowthInside0X128 = feeGrowthGlobal0X128 - lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;
+                feeGrowthInside1X128 = feeGrowthGlobal1X128 - lowerFeeGrowthOutside1X128 - upperFeeGrowthOutside1X128;
+            } else {
+                feeGrowthInside0X128 = upperFeeGrowthOutside0X128 - lowerFeeGrowthOutside0X128;
+                feeGrowthInside1X128 = upperFeeGrowthOutside1X128 - lowerFeeGrowthOutside1X128;
+            }
         }
     }
 }

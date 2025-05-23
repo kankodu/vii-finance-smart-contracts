@@ -13,8 +13,10 @@ import {IEulerRouter} from "lib/euler-interfaces/interfaces/IEulerRouter.sol";
 import {Test} from "forge-std/Test.sol";
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol";
 import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
+import {Fuzzers} from "@uniswap/v4-core/src/test/Fuzzers.sol";
+import {Pool} from "@uniswap/v4-core/src/libraries/Pool.sol";
 
-contract UniswapBaseTest is Test {
+contract UniswapBaseTest is Test, Fuzzers {
     uint256 constant INTERNAL_DEBT_PRECISION_SHIFT = 31;
 
     IEVC evc;
@@ -79,6 +81,31 @@ contract UniswapBaseTest is Test {
         address governorAdmin = eVault.governorAdmin();
         startHoax(governorAdmin);
         eVault.setLTV(address(wrapper), 0.9e4, 0.9e4, 0);
+    }
+
+    struct LiquidityParams {
+        int256 liquidityDelta;
+        int24 tickLower;
+        int24 tickUpper;
+    }
+
+    function createFuzzyLiquidityParams(LiquidityParams memory params, int24 tickSpacing, uint160 sqrtPriceX96)
+        internal
+        pure
+        returns (LiquidityParams memory)
+    {
+        (params.tickLower, params.tickUpper) = boundTicks(params.tickLower, params.tickUpper, tickSpacing);
+        int256 liquidityDeltaFromAmounts =
+            getLiquidityDeltaFromAmounts(params.tickLower, params.tickUpper, sqrtPriceX96);
+
+        int256 liquidityMaxPerTick = int256(uint256(Pool.tickSpacingToMaxLiquidityPerTick(tickSpacing)));
+
+        int256 liquidityMax =
+            liquidityDeltaFromAmounts > liquidityMaxPerTick ? liquidityMaxPerTick : liquidityDeltaFromAmounts;
+        _vm.assume(liquidityMax != 0);
+        params.liquidityDelta = bound(liquidityDeltaFromAmounts, 1, liquidityMax);
+
+        return params;
     }
 
     function borrowTest() internal {

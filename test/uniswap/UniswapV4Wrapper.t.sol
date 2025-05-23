@@ -60,7 +60,7 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     }
 }
 
-contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
+contract UniswapV4WrapperTest is Test, UniswapBaseTest {
     using StateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -210,13 +210,13 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
         assertGt(outputAmount, 0);
     }
 
-    function boundLiquidityParamsAndMint(ModifyLiquidityParams memory params)
+    function boundLiquidityParamsAndMint(LiquidityParams memory params)
         internal
         returns (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent)
     {
         params.liquidityDelta = bound(params.liquidityDelta, 10e18, 10_000e18);
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
-        params = Fuzzers.createFuzzyLiquidityParams(poolKey, params, sqrtRatioX96);
+        params = createFuzzyLiquidityParams(params, poolKey.tickSpacing, sqrtRatioX96);
 
         (uint256 estimatedAmount0Required, uint256 estimatedAmount1Required) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtRatioX96,
@@ -238,7 +238,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
         );
     }
 
-    function testFuzzWrapAndUnwrap(ModifyLiquidityParams memory params) public {
+    function testFuzzWrapAndUnwrap(LiquidityParams memory params) public {
         (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent) = boundLiquidityParamsAndMint(params);
 
         startHoax(borrower);
@@ -265,11 +265,10 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
 
     function testFuzzFeeMath(int256 liquidityDelta, uint256 swapAmount) public {
         // liquidityDelta = -19999;
-        ModifyLiquidityParams memory params = ModifyLiquidityParams({
+        LiquidityParams memory params = LiquidityParams({
             tickLower: TickMath.MIN_TICK + 1,
             tickUpper: TickMath.MAX_TICK - 1,
-            liquidityDelta: liquidityDelta,
-            salt: bytes32(0)
+            liquidityDelta: liquidityDelta
         });
 
         swapAmount = bound(swapAmount, 10_000 * unit0, 100_000 * unit0);
@@ -303,7 +302,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
         assertEq(actualFees1, expectedFees1);
     }
 
-    function testFuzzTotalPositionValue(ModifyLiquidityParams memory params) public {
+    function testFuzzTotalPositionValue(LiquidityParams memory params) public {
         // function test_fuzz_total_positionValue() public {
         //     ModifyLiquidityParams memory params = ModifyLiquidityParams({
         //         tickLower: TickMath.MIN_TICK + 1,
@@ -330,14 +329,14 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest, Fuzzers {
         assertApproxEqAbs(token1Principal, amount1Spent, 1 wei);
     }
 
-    function test_fuzz_collect_erc20(ModifyLiquidityParams memory params) public {
+    function test_fuzz_collect_erc20(LiquidityParams memory params) public {
         // function test_fuzz_collect_erc20() public {
         // ModifyLiquidityParams memory params =
         //     ModifyLiquidityParams({tickLower: 10, tickUpper: 20, liquidityDelta: -1000, salt: bytes32(0)});
 
         params.liquidityDelta = bound(params.liquidityDelta, 10e18, 10_000e18);
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
-        params = Fuzzers.createFuzzyLiquidityParams(poolKey, params, sqrtRatioX96);
+        params = createFuzzyLiquidityParams(params, poolKey.tickSpacing, sqrtRatioX96);
 
         (uint256 estimatedAmount0Required, uint256 estimatedAmount1Required) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtRatioX96,
