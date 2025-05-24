@@ -198,7 +198,7 @@ contract UniswapBaseTest is Test, Fuzzers {
                 new FixedRateOracle(
                     address(wrapper),
                     unitOfAccount,
-                    0.25e17 //in the actual conditions this price will always be the fixed 1:1, the balanceOf(user) will change as the price of the underlying tokens change and the position becomes liquidateable
+                    0.25e17 //in the actual conditions this price will always be the fixed 1:1, the balanceOf(user) will change as the price of the underlying tokens change and the position becomes liquidatable
                 )
             )
         );

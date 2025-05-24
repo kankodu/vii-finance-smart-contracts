@@ -112,7 +112,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
         uint256 totalTokenIds = totalTokenIdsEnabledBy(sender);
 
         for (uint256 i = 0; i < totalTokenIds; i++) {
-            _transfer(sender, to, tokenIdOfOwnerByIndex(sender, i), FULL_AMOUNT * amount / currentBalance); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
+            _transfer(sender, to, tokenIdOfOwnerByIndex(sender, i), normalizedToFull(amount, currentBalance)); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
         }
         return true;
     }
@@ -134,6 +134,14 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
             // ask price for liability
             (, outAmount) = oracle.getQuotes(inAmount, base, unitOfAccount);
         }
+    }
+
+    function proportionalShare(uint256 amount, uint256 part) internal pure returns (uint256) {
+        return amount * part / FULL_AMOUNT;
+    }
+
+    function normalizedToFull(uint256 amount, uint256 currentBalance) internal pure returns (uint256) {
+        return FULL_AMOUNT * amount / currentBalance;
     }
 
     function transfer(address receiver, uint256 id, uint256 amount)

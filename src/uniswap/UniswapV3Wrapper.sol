@@ -42,7 +42,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
-                liquidity: (amount * uint256(liquidity) / FULL_AMOUNT).toUint128(),
+                liquidity: proportionalShare(uint256(liquidity), amount).toUint128(),
                 amount0Min: 0,
                 amount1Min: 0,
                 deadline: block.timestamp
@@ -59,8 +59,8 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
             INonfungiblePositionManager.CollectParams({
                 tokenId: tokenId,
                 recipient: to,
-                amount0Max: (amount0 + (amount * (tokensOwed0 - amount0) / FULL_AMOUNT)).toUint128(),
-                amount1Max: (amount1 + (amount * (tokensOwed1 - amount1) / FULL_AMOUNT)).toUint128()
+                amount0Max: (amount0 + proportionalShare((tokensOwed0 - amount0), amount)).toUint128(),
+                amount1Max: (amount1 + proportionalShare((tokensOwed1 - amount1), amount)).toUint128()
             })
         );
     }
@@ -77,7 +77,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         uint256 amount0InUnitOfAccount = getQuote(amount0, token0);
         uint256 amount1InUnitOfAccount = getQuote(amount1, token1);
 
-        return (amount0InUnitOfAccount + amount1InUnitOfAccount) * amount / FULL_AMOUNT;
+        return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
     function _totalPositionValue(IUniswapV3Pool pool, uint160 sqrtRatioX96, uint256 tokenId)
@@ -100,10 +100,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
             uint128 tokensOwed1
         ) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
-        console.log("tokensOwed0", tokensOwed0);
-
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(pool, tickLower, tickUpper);
-        console.log("feeGrowthInside0X128", feeGrowthInside0X128);
 
         (uint256 amount0Principal, uint256 amount1Principal) =
             UniswapPositionValueHelper.principal(sqrtRatioX96, tickLower, tickUpper, liquidity);
@@ -118,7 +115,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     }
 
     function _getFeeGrowthInside(IUniswapV3Pool pool, int24 tickLower, int24 tickUpper)
-        private
+        internal
         view
         returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
     {

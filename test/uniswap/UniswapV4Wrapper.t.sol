@@ -238,6 +238,14 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         );
     }
 
+    function testWrapFailIfNotTheSamePoolId() public {
+        //we know the first 10 tokenIds are not from the same pool
+        for (uint256 i = 1; i < 10; i++) {
+            vm.expectRevert(UniswapV4Wrapper.InvalidPoolId.selector);
+            wrapper.wrap(i, borrower);
+        }
+    }
+
     function testFuzzWrapAndUnwrap(LiquidityParams memory params) public {
         (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent) = boundLiquidityParamsAndMint(params);
 
