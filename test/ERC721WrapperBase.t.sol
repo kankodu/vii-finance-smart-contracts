@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
 import {EthereumVaultConnector} from "lib/ethereum-vault-connector/src/EthereumVaultConnector.sol";
 import {ERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+import {ERC6909} from "lib/openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
 
 contract ERC721WrapperBaseMock is ERC721WrapperBase {
     constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount)
@@ -32,6 +33,10 @@ contract ERC721WrapperBaseTest is Test {
     ERC721WrapperBaseMock public wrapper;
     EthereumVaultConnector public evc = new EthereumVaultConnector();
     ERC721Mint public underlying = new ERC721Mint();
+
+    address operator = makeAddr("operator");
+
+    uint256 constant FULL_AMOUNT = 1000 ether;
 
     function setUp() public {
         wrapper = new ERC721WrapperBaseMock(address(evc), address(underlying), address(0), address(0));
@@ -113,6 +118,16 @@ contract ERC721WrapperBaseTest is Test {
         wrap(tokenId, address(this));
 
         unwrap(tokenId, address(this), address(this));
+    }
+
+    function test_unwrapFrom(uint256 tokenId) public {
+        wrap(tokenId, address(this));
+
+        vm.startPrank(operator);
+        // vm.expectRevert(abi.encodeWithSelector(ERC6909.ERC6909InsufficientAllowance.selector, 0, FULL_AMOUNT, tokenId));
+        vm.expectPartialRevert(ERC6909.ERC6909InsufficientAllowance.selector);
+        wrapper.unwrap(address(this), tokenId, operator);
+        vm.stopPrank();
     }
 
     function test_balanceOf() public {
