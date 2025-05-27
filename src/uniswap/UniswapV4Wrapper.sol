@@ -16,6 +16,7 @@ import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.so
 
 contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolId public immutable poolId;
+    PoolKey public poolKey;
 
     using SafeCast for uint256;
 
@@ -30,15 +31,20 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
     error InvalidPoolId();
 
-    constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, PoolId _poolId)
-        ERC721WrapperBase(_evc, _positionManager, _oracle, _unitOfAccount)
-    {
-        poolId = _poolId;
+    constructor(
+        address _evc,
+        address _positionManager,
+        address _oracle,
+        address _unitOfAccount,
+        PoolKey memory _poolKey
+    ) ERC721WrapperBase(_evc, _positionManager, _oracle, _unitOfAccount) {
+        poolKey = _poolKey;
+        poolId = _poolKey.toId();
     }
 
     function _validatePosition(uint256 tokenId) internal view override {
-        (PoolKey memory poolKey,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
-        if (PoolId.unwrap(poolKey.toId()) != PoolId.unwrap(poolId)) revert InvalidPoolId();
+        (PoolKey memory poolKeyOfTokenId,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
+        if (PoolId.unwrap(poolKeyOfTokenId.toId()) != PoolId.unwrap(poolId)) revert InvalidPoolId();
     }
 
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
@@ -48,16 +54,12 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         //decrease proportional liquidity and send it to the recipient
         _decreaseLiquidity(tokenId, (amount * uint256(liquidity) / FULL_AMOUNT).toUint128(), to);
 
-        (PoolKey memory poolKey,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
-
         //send part of the fees as well
         poolKey.currency0.transfer(to, amount * tokensOwed[tokenId].amount0Owed / FULL_AMOUNT);
         poolKey.currency1.transfer(to, amount * tokensOwed[tokenId].amount1Owed / FULL_AMOUNT);
     }
 
     function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
-        (PoolKey memory poolKey,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
-
         bytes memory actions = new bytes(2);
         actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
         actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
@@ -73,7 +75,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         internal
         returns (uint256 amount0, uint256 amount1)
     {
-        (PoolKey memory poolKey,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
         uint256 balance0 = poolKey.currency0.balanceOf(address(this));
         uint256 balance1 = poolKey.currency1.balanceOf(address(this));
 
@@ -93,7 +94,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
         IPoolManager poolManager = IPositionManager(address(underlying)).poolManager();
-        (PoolKey memory poolKey,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
 
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
 

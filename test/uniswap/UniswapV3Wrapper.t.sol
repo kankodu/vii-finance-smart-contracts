@@ -46,20 +46,20 @@ contract MockUniswapV3Wrapper is UniswapV3Wrapper {
         actualFees1 = (tokensOwed1After - tokensOwed1Before);
     }
 
-    function getFeeGrowthInside(IUniswapV3Pool pool, int24 tickLower, int24 tickUpper)
+    function getFeeGrowthInside(int24 tickLower, int24 tickUpper)
         external
         view
         returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
     {
-        return _getFeeGrowthInside(pool, tickLower, tickUpper);
+        return _getFeeGrowthInside(tickLower, tickUpper);
     }
 
-    function totalPositionValue(IUniswapV3Pool pool, uint160 sqrtRatioX96, uint256 tokenId)
+    function totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
         external
         view
         returns (uint256 amount0Total, uint256 amount1Total)
     {
-        return _totalPositionValue(pool, sqrtRatioX96, tokenId);
+        return _totalPositionValue(sqrtRatioX96, tokenId);
     }
 }
 
@@ -198,7 +198,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         (uint160 sqrtRatioX96,,,,,,) = pool.slot0();
 
         (uint256 token0Principal, uint256 token1Principal) =
-            MockUniswapV3Wrapper(address(wrapper)).totalPositionValue(pool, sqrtRatioX96, tokenId);
+            MockUniswapV3Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
 
         //since no swap has been the principal amount should be the same as the amount0 and amount1
         assertApproxEqAbs(token0Principal, amount0Spent, 1 wei);
@@ -259,7 +259,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         ) = nonFungiblePositionManager.positions(tokenId);
 
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-            MockUniswapV3Wrapper(address(wrapper)).getFeeGrowthInside(pool, tickLower, tickUpper);
+            MockUniswapV3Wrapper(address(wrapper)).getFeeGrowthInside(tickLower, tickUpper);
 
         (uint256 expectedFees0, uint256 expectedFees1) = UniswapPositionValueHelper.feesOwed(
             feeGrowthInside0X128, feeGrowthInside1X128, feeGrowthInside0LastX128, feeGrowthInside1LastX128, liquidity

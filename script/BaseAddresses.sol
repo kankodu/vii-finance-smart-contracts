@@ -8,4 +8,6 @@ library BaseAddresses {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address constant EVC = 0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989;
     address constant WETH_EVAULT = 0xc460A5e894FF62E7D5392096eFe285b5352545EF;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant ETH = address(0);
 }

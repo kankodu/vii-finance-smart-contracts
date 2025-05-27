@@ -10,8 +10,12 @@ import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelp
 import {console} from "forge-std/console.sol";
 
 contract UniswapV3Wrapper is ERC721WrapperBase {
-    address public immutable poolAddress;
+    IUniswapV3Pool public immutable pool;
     IUniswapV3Factory public immutable factory;
+
+    address public immutable token0;
+    address public immutable token1;
+    uint24 public immutable fee;
 
     error InvalidPoolAddress();
 
@@ -24,16 +28,20 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         address _unitOfAccount,
         address _poolAddress
     ) ERC721WrapperBase(_evc, _nonFungiblePositionManager, _oracle, _unitOfAccount) {
-        poolAddress = _poolAddress;
+        pool = IUniswapV3Pool(_poolAddress);
+        token0 = pool.token0();
+        token1 = pool.token1();
+        fee = pool.fee();
+
         factory = IUniswapV3Factory(INonfungiblePositionManager(address(underlying)).factory());
     }
 
     function _validatePosition(uint256 tokenId) internal view override {
-        (,, address token0, address token1, uint24 fee,,,,,,,) =
+        (,, address token0OfTokenId, address token1OfTokenId, uint24 feeOfTokenId,,,,,,,) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
         ///@dev external calls are not really required to get the pool address
-        address pool = factory.getPool(token0, token1, fee);
-        if (pool != poolAddress) revert InvalidPoolAddress();
+        address poolOfTokenId = factory.getPool(token0OfTokenId, token1OfTokenId, feeOfTokenId);
+        if (poolOfTokenId != address(pool)) revert InvalidPoolAddress();
     }
 
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
@@ -66,13 +74,9 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     }
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
-        (,, address token0, address token1, uint24 fee,,,,,,,) =
-            INonfungiblePositionManager(address(underlying)).positions(tokenId);
-        IUniswapV3Pool pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
-
         (uint160 sqrtRatioX96,,,,,,) = pool.slot0();
 
-        (uint256 amount0, uint256 amount1) = _totalPositionValue(pool, sqrtRatioX96, tokenId);
+        (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);
 
         uint256 amount0InUnitOfAccount = getQuote(amount0, token0);
         uint256 amount1InUnitOfAccount = getQuote(amount1, token1);
@@ -80,7 +84,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
-    function _totalPositionValue(IUniswapV3Pool pool, uint160 sqrtRatioX96, uint256 tokenId)
+    function _totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
         internal
         view
         returns (uint256 amount0Total, uint256 amount1Total)
@@ -100,7 +104,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
             uint128 tokensOwed1
         ) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(pool, tickLower, tickUpper);
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(tickLower, tickUpper);
 
         (uint256 amount0Principal, uint256 amount1Principal) =
             UniswapPositionValueHelper.principal(sqrtRatioX96, tickLower, tickUpper, liquidity);
@@ -114,7 +118,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         amount1Total = amount1Principal + feesOwed1 + tokensOwed1;
     }
 
-    function _getFeeGrowthInside(IUniswapV3Pool pool, int24 tickLower, int24 tickUpper)
+    function _getFeeGrowthInside(int24 tickLower, int24 tickUpper)
         internal
         view
         returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)

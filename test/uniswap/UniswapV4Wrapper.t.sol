@@ -37,9 +37,13 @@ import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelp
 import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
-    constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, PoolId _poolId)
-        UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolId)
-    {}
+    constructor(
+        address _evc,
+        address _positionManager,
+        address _oracle,
+        address _unitOfAccount,
+        PoolKey memory _poolKey
+    ) UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolKey) {}
 
     function syncFeesOwned(uint256 tokenId) external returns (uint256 actualFees0, uint256 actualFees1) {
         uint256 amount0OwedBefore = tokensOwed[tokenId].amount0Owed;
@@ -91,7 +95,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         poolId = poolKey.toId();
 
         ERC721WrapperBase uniswapV4Wrapper =
-            new MockUniswapV4Wrapper(address(evc), address(positionManager), address(oracle), unitOfAccount, poolId);
+            new MockUniswapV4Wrapper(address(evc), address(positionManager), address(oracle), unitOfAccount, poolKey);
 
         return uniswapV4Wrapper;
     }
