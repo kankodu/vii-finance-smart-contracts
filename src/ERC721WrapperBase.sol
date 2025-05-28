@@ -95,6 +95,8 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view virtual returns (uint256);
 
+    /// @notice For regular EVK vaults, it returns the balance of the user in vault share terms, which is then converted into unitOfAccount terms by the price oracle.
+    /// @dev For ERC721WrapperBase, this returns the sum value of each tokenId in unitOfAccount terms. When the vault calls the price oracle, it returns the value 1:1 because the price oracle for this collateral-only vault is configured to return 1:1.
     function balanceOf(address owner) public view returns (uint256 totalValue) {
         uint256 totalTokenIds = totalTokenIdsEnabledBy(owner);
 
@@ -104,7 +106,9 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
         }
     }
 
-    ///@dev no need to check if sender is being liquidated, sender can choose to do this at any time
+    /// @notice For regular EVK vaults, it transfers the specified amount of vault shares from the sender to the receiver for regular EVK vaults.
+    /// @dev For ERC721WrapperBase, transfers a proportional amount of ERC6909 tokens (calculated as FULL_AMOUNT * amount / balanceOf(sender)) for each enabled tokenId from the sender to the receiver.
+    /// @dev no need to check if sender is being liquidated, sender can choose to do this at any time
     function transfer(address to, uint256 amount) public callThroughEVC returns (bool) {
         address sender = _msgSender();
         uint256 currentBalance = balanceOf(sender);
