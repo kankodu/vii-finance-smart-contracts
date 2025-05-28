@@ -15,7 +15,7 @@ sequenceDiagram
 
 
     NonFungiblePositionManager->>Pool: `mint` Open LP position on behalf of Alice at specified range
-    Pool-->>NonFungiblePositionManager:
+    Pool-->>NonFungiblePositionManager: LP position
     NonFungiblePositionManager-->>Alice: Mint an NFT representing the LP position
 
     Note right of Alice: Supply the tokenId to be used as collateral
