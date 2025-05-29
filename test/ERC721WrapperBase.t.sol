@@ -137,8 +137,16 @@ contract ERC721WrapperBaseTest is Test {
         wrapper.enableTokenIdAsCollateral(1);
         assertEq(wrapper.balanceOf(address(this)), wrapper.FULL_AMOUNT());
 
+        uint256[] memory enabledTokenIds = wrapper.getEnabledTokenIds(address(this));
+        assertEq(enabledTokenIds.length, 1);
+        assertEq(enabledTokenIds[0], 1);
+
         wrapper.enableTokenIdAsCollateral(2);
         assertEq(wrapper.balanceOf(address(this)), 2 * wrapper.FULL_AMOUNT());
+
+        enabledTokenIds = wrapper.getEnabledTokenIds(address(this));
+        assertEq(enabledTokenIds.length, 2);
+        assertEq(enabledTokenIds[0], 1);
 
         //if user splits tokenId then the balance should be be decreased as well
         wrapper.transfer(address(1), wrapper.FULL_AMOUNT());

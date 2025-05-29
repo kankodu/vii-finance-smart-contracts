@@ -167,4 +167,8 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     {
         return super.transferFrom(sender, receiver, id, amount);
     }
+
+    function getEnabledTokenIds(address owner) external view returns (uint256[] memory) {
+        return _enabledTokenIds[owner].values();
+    }
 }
