@@ -32,6 +32,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     mapping(address owner => EnumerableSet.UintSet) private _enabledTokenIds;
 
     error MaximumAllowedTokenIdsReached();
+    error TokenIdNotOwnedByThisContract();
 
     event TokenIdEnabled(address indexed owner, uint256 indexed tokenId, bool enabled);
 
@@ -67,8 +68,13 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     function _validatePosition(uint256 tokenId) internal view virtual;
 
     function wrap(uint256 tokenId, address to) public callThroughEVC {
-        _validatePosition(tokenId);
         underlying.transferFrom(_msgSender(), address(this), tokenId);
+        _wrap(tokenId, to);
+    }
+
+    /// @dev assumes that the tokenId is already owned by this address
+    function _wrap(uint256 tokenId, address to) internal {
+        _validatePosition(tokenId);
         _mint(to, tokenId, FULL_AMOUNT);
     }
 
@@ -170,5 +176,19 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
 
     function getEnabledTokenIds(address owner) external view returns (uint256[] memory) {
         return _enabledTokenIds[owner].values();
+    }
+    ///@dev specific to the implementation, it should return the tokenId that needs to be skimmed
+
+    function _getTokenIdToSkim() internal view virtual returns (uint256);
+
+    function skim(address to) external callThroughEVC {
+        uint256 tokenId = _getTokenIdToSkim();
+        //in case the tokenId is not owned by this contract already, it will revert
+        if (underlying.ownerOf(tokenId) != address(this)) {
+            revert TokenIdNotOwnedByThisContract();
+        }
+        //TODO: what if someone tries to skim a tokenId that was not just transferred by them just now?
+        //can the totalSupply of ERC6909 go over FULL_AMOUNT?
+        _wrap(tokenId, to);
     }
 }

@@ -2,7 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
-import {INonfungiblePositionManager} from "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {
+    INonfungiblePositionManager,
+    IERC721Enumerable
+} from "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import {IUniswapV3Factory} from "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
@@ -42,6 +45,12 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         ///@dev external calls are not really required to get the pool address
         address poolOfTokenId = factory.getPool(token0OfTokenId, token1OfTokenId, feeOfTokenId);
         if (poolOfTokenId != address(pool)) revert InvalidPoolAddress();
+    }
+
+    ///@dev we know NonFungiblePositionManager is ERC721Enumerable, we return the last tokenId that is owned by this contract
+    function _getTokenIdToSkim() internal view override returns (uint256) {
+        uint256 totalTokensOwnedByThis = IERC721Enumerable(address(underlying)).balanceOf(address(this));
+        return IERC721Enumerable(address(underlying)).tokenOfOwnerByIndex(address(this), totalTokensOwnedByThis - 1);
     }
 
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {

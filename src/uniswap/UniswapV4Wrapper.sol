@@ -47,6 +47,11 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         if (PoolId.unwrap(poolKeyOfTokenId.toId()) != PoolId.unwrap(poolId)) revert InvalidPoolId();
     }
 
+    ///@dev For PositionManager, we get the last tokenId that was just minted
+    function _getTokenIdToSkim() internal view override returns (uint256) {
+        return IPositionManager(address(underlying)).nextTokenId() - 1;
+    }
+
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
         _syncFeesOwned(tokenId);
         uint128 liquidity = IPositionManager(address(underlying)).getPositionLiquidity(tokenId);

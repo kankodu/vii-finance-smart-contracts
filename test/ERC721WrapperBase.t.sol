@@ -11,6 +11,9 @@ contract ERC721WrapperBaseMock is ERC721WrapperBase {
     constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount)
         ERC721WrapperBase(_evc, _underlying, _oracle, _unitOfAccount)
     {}
+
+    function _getTokenIdToSkim() internal view override returns (uint256) {}
+
     function _validatePosition(uint256 tokenId) internal view override {}
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {}
 

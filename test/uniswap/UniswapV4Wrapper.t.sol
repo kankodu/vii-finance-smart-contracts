@@ -245,9 +245,33 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
     function testWrapFailIfNotTheSamePoolId() public {
         //we know the first 10 tokenIds are not from the same pool
         for (uint256 i = 1; i < 10; i++) {
+            startHoax(wrapper.underlying().ownerOf(i));
+            wrapper.underlying().approve(address(wrapper), i);
+
             vm.expectRevert(UniswapV4Wrapper.InvalidPoolId.selector);
             wrapper.wrap(i, borrower);
         }
+    }
+
+    function testSkim() public {
+        LiquidityParams memory params = LiquidityParams({
+            tickLower: TickMath.MIN_TICK + 1,
+            tickUpper: TickMath.MAX_TICK - 1,
+            liquidityDelta: -19999
+        });
+        (uint256 tokenIdMinted,,) = boundLiquidityParamsAndMint(params);
+
+        //fail if trying to skim the last minted tokenId but wrapper is not the owner
+        vm.expectRevert(ERC721WrapperBase.TokenIdNotOwnedByThisContract.selector);
+        wrapper.skim(borrower);
+
+        startHoax(borrower);
+        wrapper.underlying().transferFrom(borrower, address(wrapper), tokenIdMinted);
+
+        startHoax(address(1));
+        wrapper.skim(borrower);
+
+        assertEq(wrapper.balanceOf(borrower, tokenIdMinted), wrapper.FULL_AMOUNT());
     }
 
     function testFuzzWrapAndUnwrap(LiquidityParams memory params) public {
