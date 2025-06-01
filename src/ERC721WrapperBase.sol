@@ -47,7 +47,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
     }
 
     ///@dev returns true if it wasn't already enabled, it was already enabled, it will return false
-    function enableTokenIdAsCollateral(uint256 tokenId) external callThroughEVC returns (bool) {
+    function enableTokenIdAsCollateral(uint256 tokenId) public callThroughEVC returns (bool) {
         address sender = _msgSender();
         if (totalTokenIdsEnabledBy(sender) >= MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
         emit TokenIdEnabled(sender, tokenId, true);
@@ -195,5 +195,10 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
             revert TokenIdIsAlreadyWrapped();
         }
         _wrap(tokenId, to);
+    }
+
+    function enableSkimmedTokenIdAsCollateral() public callThroughEVC {
+        uint256 tokenId = _getTokenIdToSkim();
+        enableTokenIdAsCollateral(tokenId);
     }
 }
