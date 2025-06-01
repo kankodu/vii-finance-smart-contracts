@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {ERC6909} from "lib/openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
+import {IERC6909, ERC6909} from "lib/openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
+import {ERC6909TokenSupply} from
+    "lib/openzeppelin-contracts/contracts/token/ERC6909/extensions/draft-ERC6909TokenSupply.sol";
 import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
 import {Context} from "lib/openzeppelin-contracts/contracts/utils/Context.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
@@ -19,7 +21,7 @@ interface IERC721WrapperBase is IPartialERC20 {
     function unwrap(uint256 tokenId, address to) external;
 }
 
-abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
+abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC20 {
     uint256 public constant FULL_AMOUNT = 1000 ether;
     uint256 public constant MAX_TOKENIDS_ALLOWED = 2;
 
@@ -33,6 +35,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
 
     error MaximumAllowedTokenIdsReached();
     error TokenIdNotOwnedByThisContract();
+    error TokenIdIsAlreadyWrapped();
 
     event TokenIdEnabled(address indexed owner, uint256 indexed tokenId, bool enabled);
 
@@ -157,7 +160,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     function transfer(address receiver, uint256 id, uint256 amount)
         public
         virtual
-        override
+        override(IERC6909, ERC6909)
         callThroughEVC
         returns (bool)
     {
@@ -167,7 +170,7 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
     function transferFrom(address sender, address receiver, uint256 id, uint256 amount)
         public
         virtual
-        override
+        override(IERC6909, ERC6909)
         callThroughEVC
         returns (bool)
     {
@@ -187,8 +190,10 @@ abstract contract ERC721WrapperBase is ERC6909, EVCUtil, IPartialERC20 {
         if (underlying.ownerOf(tokenId) != address(this)) {
             revert TokenIdNotOwnedByThisContract();
         }
-        //TODO: what if someone tries to skim a tokenId that was not just transferred by them just now?
-        //can the totalSupply of ERC6909 go over FULL_AMOUNT?
+        //in case someone tries to skim already wrapped tokenId, it will revert
+        if (totalSupply(tokenId) > 0) {
+            revert TokenIdIsAlreadyWrapped();
+        }
         _wrap(tokenId, to);
     }
 }

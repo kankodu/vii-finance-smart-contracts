@@ -272,6 +272,9 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         wrapper.skim(borrower);
 
         assertEq(wrapper.balanceOf(borrower, tokenIdMinted), wrapper.FULL_AMOUNT());
+
+        vm.expectRevert(ERC721WrapperBase.TokenIdIsAlreadyWrapped.selector);
+        wrapper.skim(borrower);
     }
 
     function testFuzzWrapAndUnwrap(LiquidityParams memory params) public {
