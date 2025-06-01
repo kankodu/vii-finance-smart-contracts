@@ -273,6 +273,13 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         assertEq(wrapper.balanceOf(borrower, tokenIdMinted), wrapper.FULL_AMOUNT());
 
+        startHoax(borrower);
+        wrapper.enableSkimmedTokenIdAsCollateral();
+
+        uint256[] memory enabledTokenIds = wrapper.getEnabledTokenIds(borrower);
+        assertEq(enabledTokenIds.length, 1);
+        assertEq(enabledTokenIds[0], tokenIdMinted);
+
         vm.expectRevert(ERC721WrapperBase.TokenIdIsAlreadyWrapped.selector);
         wrapper.skim(borrower);
     }
