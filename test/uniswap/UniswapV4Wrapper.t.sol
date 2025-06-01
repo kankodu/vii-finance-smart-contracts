@@ -55,12 +55,12 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
             (tokensOwed[tokenId].amount0Owed - amount0OwedBefore, tokensOwed[tokenId].amount1Owed - amount1OwedBefore);
     }
 
-    function totalPositionValue(IPoolManager poolManager, uint160 sqrtRatioX96, uint256 tokenId)
+    function totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
         external
         view
         returns (uint256 amount0Total, uint256 amount1Total)
     {
-        return _totalPositionValue(poolManager, sqrtRatioX96, tokenId);
+        return _totalPositionValue(sqrtRatioX96, tokenId);
     }
 }
 
@@ -368,7 +368,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
 
         (uint256 token0Principal, uint256 token1Principal) =
-            MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(poolManager, sqrtRatioX96, tokenId);
+            MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
 
         //since no swap has been the principal amount should be the same as the amount0 and amount1
         assertApproxEqAbs(token0Principal, amount0Spent, 1 wei);
@@ -406,16 +406,14 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         wrapper.underlying().approve(address(wrapper), tokenId);
         wrapper.wrap(tokenId, borrower);
 
-        (uint256 token0AmountBefore,) =
-            MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(poolManager, sqrtRatioX96, tokenId);
+        (uint256 token0AmountBefore,) = MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
         console.log("token0AmountBefore", token0AmountBefore);
 
         uint256 token0Amount = 1000 * unit0;
         console.log("token0Amount", token0Amount);
         swapExactInput(address(token0), address(token1), token0Amount);
 
-        (uint256 token0AmountAfter,) =
-            MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(poolManager, sqrtRatioX96, tokenId);
+        (uint256 token0AmountAfter,) = MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
 
         console.log("difference", token0AmountAfter - token0AmountBefore);
 

@@ -17,6 +17,7 @@ import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.so
 contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolId public immutable poolId;
     PoolKey public poolKey;
+    IPoolManager public immutable poolManager;
 
     using SafeCast for uint256;
 
@@ -40,6 +41,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     ) ERC721WrapperBase(_evc, _positionManager, _oracle, _unitOfAccount) {
         poolKey = _poolKey;
         poolId = _poolKey.toId();
+        poolManager = IPositionManager(address(_positionManager)).poolManager();
     }
 
     function _validatePosition(uint256 tokenId) internal view override {
@@ -98,11 +100,9 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
-        IPoolManager poolManager = IPositionManager(address(underlying)).poolManager();
-
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
 
-        (uint256 amount0, uint256 amount1) = _totalPositionValue(poolManager, sqrtRatioX96, tokenId);
+        (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);
 
         uint256 amount0InUnitOfAccount = getQuote(amount0, address(uint160(poolKey.currency0.toId())));
         uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
@@ -110,7 +110,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         return (amount0InUnitOfAccount + amount1InUnitOfAccount) * amount / FULL_AMOUNT;
     }
 
-    function _totalPositionValue(IPoolManager poolManager, uint160 sqrtRatioX96, uint256 tokenId)
+    function _totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
         internal
         view
         returns (uint256 amount0Total, uint256 amount1Total)
