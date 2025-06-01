@@ -26,6 +26,7 @@ contract UniswapMintPositionHelper is EVCUtil {
 
     function mintPosition(INonfungiblePositionManager.MintParams memory params)
         external
+        payable
         callThroughEVC
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
@@ -35,7 +36,17 @@ contract UniswapMintPositionHelper is EVCUtil {
         IERC20(params.token0).forceApprove(address(nonfungiblePositionManager), params.amount0Desired);
         IERC20(params.token1).forceApprove(address(nonfungiblePositionManager), params.amount1Desired);
 
-        (tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager.mint(params);
+        (tokenId, liquidity, amount0, amount1) = (nonfungiblePositionManager.mint{value: msg.value}(params));
+
+        uint256 leftoverToken0Balance = IERC20(params.token0).balanceOf(address(this));
+        uint256 leftoverToken1Balance = IERC20(params.token1).balanceOf(address(this));
+
+        if (leftoverToken0Balance > 0) {
+            IERC20(params.token0).safeTransfer(_msgSender(), leftoverToken0Balance);
+        }
+        if (leftoverToken1Balance > 0) {
+            IERC20(params.token1).safeTransfer(_msgSender(), leftoverToken1Balance);
+        }
         return (tokenId, liquidity, amount0, amount1);
     }
 
@@ -47,7 +58,7 @@ contract UniswapMintPositionHelper is EVCUtil {
         uint128 amount1Max,
         address owner,
         bytes calldata hookData
-    ) external callThroughEVC returns (uint256 tokenId) {
+    ) external payable callThroughEVC returns (uint256 tokenId) {
         tokenId = positionManager.nextTokenId();
 
         IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(_msgSender(), address(positionManager), amount0Max);
@@ -68,6 +79,6 @@ contract UniswapMintPositionHelper is EVCUtil {
         params[3] = abi.encode(poolKey.currency0, _msgSender()); //if there is remaining amount of currency0, it will be swept to the user
         params[4] = abi.encode(poolKey.currency1, _msgSender());
 
-        positionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp);
+        positionManager.modifyLiquidities{value: msg.value}(abi.encode(actions, params), block.timestamp);
     }
 }
