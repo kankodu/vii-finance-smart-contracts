@@ -54,6 +54,7 @@ contract UniswapMintPositionHelper is EVCUtil {
         PoolKey calldata poolKey,
         int24 tickLower,
         int24 tickUpper,
+        uint256 liquidity,
         uint128 amount0Max,
         uint128 amount1Max,
         address owner,
@@ -63,16 +64,15 @@ contract UniswapMintPositionHelper is EVCUtil {
 
         IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(_msgSender(), address(positionManager), amount0Max);
         IERC20(Currency.unwrap(poolKey.currency1)).safeTransferFrom(_msgSender(), address(positionManager), amount1Max);
-
-        bytes memory actions = new bytes(4);
-        actions[0] = bytes1(uint8(Actions.MINT_POSITION_FROM_DELTAS));
-        actions[1] = bytes1(uint8(Actions.SETTLE));
+        bytes memory actions = new bytes(5);
+        actions[0] = bytes1(uint8(Actions.MINT_POSITION));
+        actions[1] = bytes1(uint8(Actions.SETTLE)); //necessary because we don't want funds to be pulled through permit2
         actions[2] = bytes1(uint8(Actions.SETTLE));
         actions[3] = bytes1(uint8(Actions.SWEEP));
         actions[4] = bytes1(uint8(Actions.SWEEP));
 
-        bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(poolKey, tickLower, tickUpper, amount0Max, amount1Max, owner, hookData);
+        bytes[] memory params = new bytes[](5);
+        params[0] = abi.encode(poolKey, tickLower, tickUpper, liquidity, amount0Max, amount1Max, owner, hookData);
         params[1] = abi.encode(poolKey.currency0, ActionConstants.OPEN_DELTA, false); //whatever is the open delta will be settled and the payer will be the position manager itself
         params[2] = abi.encode(poolKey.currency1, ActionConstants.OPEN_DELTA, false);
 

@@ -35,6 +35,7 @@ import {TestRouter, SwapParams} from "lib/v4-periphery/test/shared/TestRouter.so
 import {BalanceDelta, BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
+import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     constructor(
@@ -96,6 +97,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         ERC721WrapperBase uniswapV4Wrapper =
             new MockUniswapV4Wrapper(address(evc), address(positionManager), address(oracle), unitOfAccount, poolKey);
+        mintPositionHelper = new UniswapMintPositionHelper(address(evc), address(0), address(positionManager));
 
         return uniswapV4Wrapper;
     }
@@ -113,22 +115,8 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         SafeERC20.forceApprove(IERC20(token0), address(router), type(uint256).max);
 
         startHoax(borrower);
-        SafeERC20.forceApprove(currencyToToken(currency0), address(permit2), type(uint256).max);
-        SafeERC20.forceApprove(currencyToToken(currency1), address(permit2), type(uint256).max);
-
-        startHoax(borrower);
-        permit2.approve(
-            address(currencyToToken(currency0)),
-            address(positionManager),
-            type(uint160).max,
-            uint48(block.timestamp + 1 days)
-        );
-        permit2.approve(
-            address(currencyToToken(currency1)),
-            address(positionManager),
-            type(uint160).max,
-            uint48(block.timestamp + 1 days)
-        );
+        SafeERC20.forceApprove(currencyToToken(currency0), address(mintPositionHelper), type(uint256).max);
+        SafeERC20.forceApprove(currencyToToken(currency1), address(mintPositionHelper), type(uint256).max);
 
         (tokenId,,) = mintPosition(poolKey, TickMath.MIN_TICK, TickMath.MAX_TICK, 100 * unit0, 100 * unit1, 0, borrower);
     }
@@ -145,10 +133,6 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         deal(address(token0), borrower, amount0Desired * 2);
         deal(address(token1), borrower, amount1Desired * 2);
 
-        bytes memory actions = new bytes(2);
-        actions[0] = bytes1(uint8(Actions.MINT_POSITION));
-        actions[1] = bytes1(uint8(Actions.SETTLE_PAIR));
-
         tokenIdMinted = positionManager.nextTokenId();
 
         if (liquidityToAdd == 0) {
@@ -162,18 +146,27 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
                 amount1Desired
             );
         }
-        uint128 amount0Max = type(uint128).max;
-        uint128 amount1Max = type(uint128).max;
-
-        bytes[] memory params = new bytes[](2);
-        params[0] =
-            abi.encode(targetPoolKey, tickLower, tickUpper, liquidityToAdd, amount0Max, amount1Max, owner, new bytes(0));
-        params[1] = abi.encode(currency0, currency1);
 
         uint256 token0BalanceBefore = IERC20(token0).balanceOf(borrower);
         uint256 token1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
-        positionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp);
+        mintPositionHelper.mintPosition(
+            targetPoolKey,
+            tickLower,
+            tickUpper,
+            liquidityToAdd,
+            uint128(amount0Desired) * 2,
+            uint128(amount1Desired) * 2,
+            owner,
+            new bytes(0)
+        );
+
+        //ensure any unused tokens are returned to the borrower and position manager balance is zero
+        assertEq(IERC20(token0).balanceOf(address(positionManager)), 0);
+        assertEq(IERC20(token1).balanceOf(address(positionManager)), 0);
+
+        assertEq(IERC20(token0).balanceOf(address(mintPositionHelper)), 0);
+        assertEq(IERC20(token1).balanceOf(address(mintPositionHelper)), 0);
 
         amount0 = token0BalanceBefore - IERC20(token0).balanceOf(borrower);
         amount1 = token1BalanceBefore - IERC20(token1).balanceOf(borrower);
