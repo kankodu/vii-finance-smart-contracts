@@ -15,6 +15,7 @@ import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/interfaces/IE
 import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
 import {Fuzzers} from "@uniswap/v4-core/src/test/Fuzzers.sol";
 import {Pool} from "@uniswap/v4-core/src/libraries/Pool.sol";
+import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
 
 contract UniswapBaseTest is Test, Fuzzers {
     uint256 constant INTERNAL_DEBT_PRECISION_SHIFT = 31;
@@ -39,6 +40,7 @@ contract UniswapBaseTest is Test, Fuzzers {
 
     address borrower = makeAddr("borrower");
     address liquidator = makeAddr("liquidator");
+    UniswapMintPositionHelper public mintPositionHelper;
 
     uint256 tokenId;
 

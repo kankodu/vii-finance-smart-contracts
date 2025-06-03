@@ -10,7 +10,6 @@ import {IUniswapV3Factory} from "lib/v3-core/contracts/interfaces/IUniswapV3Fact
 import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
-import {console} from "forge-std/console.sol";
 
 contract UniswapV3Wrapper is ERC721WrapperBase {
     IUniswapV3Pool public immutable pool;

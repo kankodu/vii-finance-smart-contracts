@@ -19,6 +19,7 @@ import {LiquidityAmounts} from "lib/v3-periphery/contracts/libraries/LiquidityAm
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
+import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
 
 contract MockUniswapV3Wrapper is UniswapV3Wrapper {
     constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, address _pool)
@@ -82,6 +83,8 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         ERC721WrapperBase uniswapV3Wrapper = new MockUniswapV3Wrapper(
             address(evc), address(nonFungiblePositionManager), address(oracle), unitOfAccount, address(pool)
         );
+        mintPositionHelper =
+            new UniswapMintPositionHelper(address(evc), address(nonFungiblePositionManager), address(0));
 
         return uniswapV3Wrapper;
     }
@@ -92,8 +95,8 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         SafeERC20.forceApprove(IERC20(token0), address(swapRouter), type(uint256).max);
         SafeERC20.forceApprove(IERC20(token1), address(swapRouter), type(uint256).max);
 
-        SafeERC20.forceApprove(IERC20(token0), address(nonFungiblePositionManager), type(uint256).max);
-        SafeERC20.forceApprove(IERC20(token1), address(nonFungiblePositionManager), type(uint256).max);
+        SafeERC20.forceApprove(IERC20(token0), address(mintPositionHelper), type(uint256).max);
+        SafeERC20.forceApprove(IERC20(token1), address(mintPositionHelper), type(uint256).max);
 
         (tokenId,,) = mintPosition(
             borrower,
@@ -115,7 +118,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         deal(address(token0), borrower, amount0Desired * 2);
         deal(address(token1), borrower, amount1Desired * 2);
 
-        (tokenIdMinted,, amount0, amount1) = nonFungiblePositionManager.mint(
+        (tokenIdMinted,, amount0, amount1) = mintPositionHelper.mintPosition(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -130,6 +133,9 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
                 deadline: block.timestamp
             })
         );
+
+        assertEq(IERC20(token0).balanceOf(address(mintPositionHelper)), 0);
+        assertEq(IERC20(token1).balanceOf(address(mintPositionHelper)), 0);
     }
 
     function boundLiquidityParamsAndMint(LiquidityParams memory params)
