@@ -59,11 +59,11 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint128 liquidity = IPositionManager(address(underlying)).getPositionLiquidity(tokenId);
 
         //decrease proportional liquidity and send it to the recipient
-        _decreaseLiquidity(tokenId, (amount * uint256(liquidity) / FULL_AMOUNT).toUint128(), to);
+        _decreaseLiquidity(tokenId, proportionalShare(uint256(liquidity), amount).toUint128(), to);
 
         //send part of the fees as well
-        poolKey.currency0.transfer(to, amount * tokensOwed[tokenId].amount0Owed / FULL_AMOUNT);
-        poolKey.currency1.transfer(to, amount * tokensOwed[tokenId].amount1Owed / FULL_AMOUNT);
+        poolKey.currency0.transfer(to, proportionalShare(tokensOwed[tokenId].amount0Owed, amount));
+        poolKey.currency1.transfer(to, proportionalShare(tokensOwed[tokenId].amount1Owed, amount));
     }
 
     function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
@@ -107,7 +107,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint256 amount0InUnitOfAccount = getQuote(amount0, address(uint160(poolKey.currency0.toId())));
         uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
 
-        return (amount0InUnitOfAccount + amount1InUnitOfAccount) * amount / FULL_AMOUNT;
+        return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
     function _totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
