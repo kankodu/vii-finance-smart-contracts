@@ -27,7 +27,6 @@ contract MockUniswapV3Wrapper is UniswapV3Wrapper {
     {}
 
     function syncFeesOwned(uint256 tokenId) external returns (uint256 actualFees0, uint256 actualFees1) {
-        //decrease 0 liquidity
         (,,,,,,,,,, uint256 tokensOwed0Before, uint256 tokensOwed1Before) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
@@ -176,22 +175,22 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
             tickUpper: TickMath.MAX_TICK - 1,
             liquidityDelta: -19999
         });
-        (uint256 tokenIdMinted,,) = boundLiquidityParamsAndMint(params);
+        (uint256 tokenId,,) = boundLiquidityParamsAndMint(params);
 
         startHoax(borrower);
-        wrapper.underlying().transferFrom(borrower, address(wrapper), tokenIdMinted);
+        wrapper.underlying().transferFrom(borrower, address(wrapper), tokenId);
 
         startHoax(address(1));
         wrapper.skim(borrower);
 
-        assertEq(wrapper.balanceOf(borrower, tokenIdMinted), wrapper.FULL_AMOUNT());
+        assertEq(wrapper.balanceOf(borrower, tokenId), wrapper.FULL_AMOUNT());
 
         startHoax(borrower);
         wrapper.enableCurrentSkimCandidateAsCollateral();
 
         uint256[] memory enabledTokenIds = wrapper.getEnabledTokenIds(borrower);
         assertEq(enabledTokenIds.length, 1);
-        assertEq(enabledTokenIds[0], tokenIdMinted);
+        assertEq(enabledTokenIds[0], tokenId);
 
         vm.expectRevert(ERC721WrapperBase.TokenIdIsAlreadyWrapped.selector);
         wrapper.skim(borrower);
@@ -199,11 +198,12 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
 
     function testFuzzWrapAndUnwrapUniV3(LiquidityParams memory params) public {
         (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent) = boundLiquidityParamsAndMint(params);
+        tokenId = tokenIdMinted;
 
         startHoax(borrower);
-        wrapper.underlying().approve(address(wrapper), tokenIdMinted);
-        wrapper.wrap(tokenIdMinted, borrower);
-        wrapper.enableTokenIdAsCollateral(tokenIdMinted);
+        wrapper.underlying().approve(address(wrapper), tokenId);
+        wrapper.wrap(tokenId, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenId);
 
         uint256 amount0InUnitOfAccount = wrapper.getQuote(amount0Spent, address(token0));
         uint256 amount1InUnitOfAccount = wrapper.getQuote(amount1Spent, address(token1));
@@ -216,7 +216,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
         //unwrap to get the underlying tokens back
-        wrapper.unwrap(borrower, tokenIdMinted, FULL_AMOUNT, borrower);
+        wrapper.unwrap(borrower, tokenId, FULL_AMOUNT, borrower);
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
@@ -241,15 +241,18 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         assertApproxEqAbs(token1Principal, amount1Spent, 1 wei);
     }
 
-    function swapExactInput(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256 amountOut) {
+    function swapExactInput(address swapper, address tokenIn, address tokenOut, uint256 amountIn)
+        internal
+        returns (uint256 amountOut)
+    {
         bool zeroForOne = tokenIn < tokenOut;
-        deal(tokenIn, borrower, amountIn);
+        deal(tokenIn, swapper, amountIn);
 
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: tokenIn,
             tokenOut: tokenOut,
             fee: fee,
-            recipient: borrower,
+            recipient: swapper,
             deadline: block.timestamp,
             amountIn: amountIn,
             amountOutMinimum: 0,
@@ -278,7 +281,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         wrapper.enableTokenIdAsCollateral(tokenId);
 
         //swap so that some fees are generated
-        swapExactInput(address(token0), address(token1), swapAmount);
+        swapExactInput(borrower, address(token0), address(token1), swapAmount);
 
         (
             ,
@@ -305,6 +308,39 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
 
         assertApproxEqAbs(actualFees0, expectedFees0, 1); //1 wei of error because it's because of the way we are calculating the actual fees is not ideal way of doing it
         assertApproxEqAbs(actualFees1, expectedFees1, 1);
+    }
+
+    function testFuzzTransfer(LiquidityParams memory params, uint256 swapAmount, uint256 transferAmount) public {
+        (tokenId,,) = boundLiquidityParamsAndMint(params);
+
+        swapAmount = bound(swapAmount, 10_000 * unit0, 100_000 * unit0);
+
+        startHoax(borrower);
+        wrapper.underlying().approve(address(wrapper), tokenId);
+        wrapper.wrap(tokenId, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenId);
+
+        swapExactInput(borrower, address(token0), address(token1), swapAmount);
+
+        uint256 totalValueBefore = wrapper.balanceOf(borrower);
+
+        transferAmount = bound(transferAmount, 1 + (totalValueBefore / 0.001 ether), totalValueBefore); //minim transfer of 0.001$
+
+        wrapper.transfer(liquidator, transferAmount);
+
+        uint256 erc6909TokensTransferred = (transferAmount * FULL_AMOUNT) / totalValueBefore;
+
+        assertEq(wrapper.balanceOf(liquidator, tokenId), erc6909TokensTransferred); //erc6909 check (rounding error)
+        assertEq(wrapper.balanceOf(borrower, tokenId), FULL_AMOUNT - erc6909TokensTransferred);
+
+        assertEq(wrapper.balanceOf(liquidator), 0); // because tokenId is not enabled as collateral
+        assertApproxEqAbs(wrapper.balanceOf(borrower), totalValueBefore - transferAmount, 0.001 ether); //0.001$ of difference is allowed
+
+        startHoax(liquidator);
+        wrapper.enableTokenIdAsCollateral(tokenId);
+
+        assertApproxEqAbs(wrapper.balanceOf(liquidator), transferAmount, 0.001 ether); //0.001$ of difference is allowed
+        assertApproxEqRel(totalValueBefore, wrapper.balanceOf(borrower) + wrapper.balanceOf(liquidator), 1);
     }
 
     function test_BasicBorrowV3() public {

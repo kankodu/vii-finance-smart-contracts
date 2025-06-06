@@ -31,7 +31,7 @@ interface IERC721WrapperBase is IPartialERC20 {
 }
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC20 {
-    uint256 public constant FULL_AMOUNT = 1000 ether;
+    uint256 public constant FULL_AMOUNT = 1e30;
     uint256 public constant MAX_TOKENIDS_ALLOWED = 2;
 
     IERC721 public immutable underlying;

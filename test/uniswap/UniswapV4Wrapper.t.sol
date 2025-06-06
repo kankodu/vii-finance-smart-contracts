@@ -130,8 +130,8 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         uint256 liquidityToAdd,
         address owner
     ) internal returns (uint256 tokenIdMinted, uint256 amount0, uint256 amount1) {
-        deal(address(token0), borrower, amount0Desired * 2);
-        deal(address(token1), borrower, amount1Desired * 2);
+        deal(address(token0), owner, amount0Desired * 2);
+        deal(address(token1), owner, amount1Desired * 2);
 
         tokenIdMinted = positionManager.nextTokenId();
 
@@ -147,8 +147,8 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
             );
         }
 
-        uint256 token0BalanceBefore = IERC20(token0).balanceOf(borrower);
-        uint256 token1BalanceBefore = IERC20(token1).balanceOf(borrower);
+        uint256 token0BalanceBefore = IERC20(token0).balanceOf(owner);
+        uint256 token1BalanceBefore = IERC20(token1).balanceOf(owner);
 
         mintPositionHelper.mintPosition(
             targetPoolKey,
@@ -168,15 +168,15 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         assertEq(IERC20(token0).balanceOf(address(mintPositionHelper)), 0);
         assertEq(IERC20(token1).balanceOf(address(mintPositionHelper)), 0);
 
-        amount0 = token0BalanceBefore - IERC20(token0).balanceOf(borrower);
-        amount1 = token1BalanceBefore - IERC20(token1).balanceOf(borrower);
+        amount0 = token0BalanceBefore - IERC20(token0).balanceOf(owner);
+        amount1 = token1BalanceBefore - IERC20(token1).balanceOf(owner);
     }
 
-    function swapExactInput(address tokenIn, address tokenOut, uint256 inputAmount)
+    function swapExactInput(address swapper, address tokenIn, address tokenOut, uint256 inputAmount)
         internal
         returns (uint256 outputAmount)
     {
-        deal(tokenIn, borrower, inputAmount);
+        deal(tokenIn, swapper, inputAmount);
 
         bool zeroForOne = tokenIn < tokenOut;
 
@@ -191,18 +191,10 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         outputAmount = zeroForOne ? uint256(int256(balanceDelta.amount1())) : uint256(int256(balanceDelta.amount0()));
     }
 
-    function test_BasicBorrowV4() public {
-        borrowTest();
-    }
-
-    function test_basicLiquidationV4() public {
-        basicLiquidationTest();
-    }
-
     function test_swapExactInput() public {
         uint256 inputAmount = 1e18;
         startHoax(borrower);
-        uint256 outputAmount = swapExactInput(address(token0), address(token1), inputAmount);
+        uint256 outputAmount = swapExactInput(borrower, address(token0), address(token1), inputAmount);
         assertGt(outputAmount, 0);
     }
 
@@ -251,26 +243,26 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
             tickUpper: TickMath.MAX_TICK - 1,
             liquidityDelta: -19999
         });
-        (uint256 tokenIdMinted,,) = boundLiquidityParamsAndMint(params);
+        (tokenId,,) = boundLiquidityParamsAndMint(params);
 
         //fail if trying to skim the last minted tokenId but wrapper is not the owner
         vm.expectRevert(ERC721WrapperBase.TokenIdNotOwnedByThisContract.selector);
         wrapper.skim(borrower);
 
         startHoax(borrower);
-        wrapper.underlying().transferFrom(borrower, address(wrapper), tokenIdMinted);
+        wrapper.underlying().transferFrom(borrower, address(wrapper), tokenId);
 
         startHoax(address(1));
         wrapper.skim(borrower);
 
-        assertEq(wrapper.balanceOf(borrower, tokenIdMinted), wrapper.FULL_AMOUNT());
+        assertEq(wrapper.balanceOf(borrower, tokenId), FULL_AMOUNT);
 
         startHoax(borrower);
         wrapper.enableCurrentSkimCandidateAsCollateral();
 
         uint256[] memory enabledTokenIds = wrapper.getEnabledTokenIds(borrower);
         assertEq(enabledTokenIds.length, 1);
-        assertEq(enabledTokenIds[0], tokenIdMinted);
+        assertEq(enabledTokenIds[0], tokenId);
 
         vm.expectRevert(ERC721WrapperBase.TokenIdIsAlreadyWrapped.selector);
         wrapper.skim(borrower);
@@ -278,24 +270,25 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
     function testFuzzWrapAndUnwrap(LiquidityParams memory params) public {
         (uint256 tokenIdMinted, uint256 amount0Spent, uint256 amount1Spent) = boundLiquidityParamsAndMint(params);
+        tokenId = tokenIdMinted;
 
         startHoax(borrower);
-        wrapper.underlying().approve(address(wrapper), tokenIdMinted);
-        wrapper.wrap(tokenIdMinted, borrower);
-        wrapper.enableTokenIdAsCollateral(tokenIdMinted);
+        wrapper.underlying().approve(address(wrapper), tokenId);
+        wrapper.wrap(tokenId, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenId);
 
         uint256 amount0InUnitOfAccount = wrapper.getQuote(amount0Spent, address(token0));
         uint256 amount1InUnitOfAccount = wrapper.getQuote(amount1Spent, address(token1));
 
         uint256 expectedBalance = (amount0InUnitOfAccount + amount1InUnitOfAccount);
 
-        assertApproxEqAbs(wrapper.balanceOf(borrower), expectedBalance, 1 ether);
+        assertApproxEqAbs(wrapper.balanceOf(borrower), expectedBalance, 0.001 ether); //0.001$ of difference is allowed
 
         uint256 amount0BalanceBefore = IERC20(token0).balanceOf(borrower);
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
         //unwrap to get the underlying tokens back
-        wrapper.unwrap(borrower, tokenIdMinted, FULL_AMOUNT, borrower);
+        wrapper.unwrap(borrower, tokenId, FULL_AMOUNT, borrower);
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
@@ -318,7 +311,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         wrapper.enableTokenIdAsCollateral(tokenId);
 
         //swap so that some fees are generated
-        swapExactInput(address(token0), address(token1), swapAmount);
+        swapExactInput(borrower, address(token0), address(token1), swapAmount);
 
         PositionInfo position = positionManager.positionInfo(tokenId);
 
@@ -355,5 +348,46 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         //since no swap has been the principal amount should be the same as the amount0 and amount1
         assertApproxEqAbs(token0Principal, amount0Spent, 1 wei);
         assertApproxEqAbs(token1Principal, amount1Spent, 1 wei);
+    }
+
+    function testFuzzTransfer(LiquidityParams memory params, uint256 swapAmount, uint256 transferAmount) public {
+        (tokenId,,) = boundLiquidityParamsAndMint(params);
+
+        swapAmount = bound(swapAmount, 10_000 * unit0, 100_000 * unit0);
+
+        startHoax(borrower);
+        wrapper.underlying().approve(address(wrapper), tokenId);
+        wrapper.wrap(tokenId, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenId);
+
+        swapExactInput(borrower, address(token0), address(token1), swapAmount);
+
+        uint256 totalValueBefore = wrapper.balanceOf(borrower);
+
+        transferAmount = bound(transferAmount, 1 + (totalValueBefore / 0.001 ether), totalValueBefore); //minim transfer of 0.001$
+
+        wrapper.transfer(liquidator, transferAmount);
+
+        uint256 erc6909TokensTransferred = (transferAmount * FULL_AMOUNT) / totalValueBefore;
+
+        assertEq(wrapper.balanceOf(liquidator, tokenId), erc6909TokensTransferred); //erc6909 check (rounding error)
+        assertEq(wrapper.balanceOf(borrower, tokenId), FULL_AMOUNT - erc6909TokensTransferred);
+
+        assertEq(wrapper.balanceOf(liquidator), 0); // because tokenId is not enabled as collateral
+        assertApproxEqAbs(wrapper.balanceOf(borrower), totalValueBefore - transferAmount, 0.001 ether); //0.001$ of difference is allowed
+
+        startHoax(liquidator);
+        wrapper.enableTokenIdAsCollateral(tokenId);
+
+        assertApproxEqAbs(wrapper.balanceOf(liquidator), transferAmount, 0.001 ether); //0.001$ of difference is allowed
+        assertApproxEqRel(totalValueBefore, wrapper.balanceOf(borrower) + wrapper.balanceOf(liquidator), 1);
+    }
+
+    function test_BasicBorrowV4() public {
+        borrowTest();
+    }
+
+    function test_basicLiquidationV4() public {
+        basicLiquidationTest();
     }
 }
