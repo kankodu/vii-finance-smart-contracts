@@ -191,7 +191,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         outputAmount = zeroForOne ? uint256(int256(balanceDelta.amount1())) : uint256(int256(balanceDelta.amount0()));
     }
 
-    function test_swapExactInput() public {
+    function test_swapExactInputV4() public {
         uint256 inputAmount = 1e18;
         startHoax(borrower);
         uint256 outputAmount = swapExactInput(borrower, address(token0), address(token1), inputAmount);
@@ -255,7 +255,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         startHoax(address(1));
         wrapper.skim(borrower);
 
-        assertEq(wrapper.balanceOf(borrower, tokenId), FULL_AMOUNT);
+        assertEq(wrapper.balanceOf(borrower, tokenId), wrapper.FULL_AMOUNT());
 
         startHoax(borrower);
         wrapper.enableCurrentSkimCandidateAsCollateral();
@@ -288,7 +288,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
         //unwrap to get the underlying tokens back
-        wrapper.unwrap(borrower, tokenId, FULL_AMOUNT, borrower);
+        wrapper.unwrap(borrower, tokenId, wrapper.FULL_AMOUNT(), borrower);
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
@@ -325,7 +325,8 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
             feeGrowthInside0X128, feeGrowthInside1X128, feeGrowthInside0LastX128, feeGrowthInside1LastX128, liquidity
         );
 
-        (uint256 actualFees0, uint256 actualFees1) = MockUniswapV4Wrapper(address(wrapper)).syncFeesOwned(tokenId);
+        (uint256 actualFees0, uint256 actualFees1) =
+            MockUniswapV4Wrapper(payable(address(wrapper))).syncFeesOwned(tokenId);
 
         assertEq(actualFees0, expectedFees0);
         assertEq(actualFees1, expectedFees1);
@@ -343,7 +344,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
 
         (uint256 token0Principal, uint256 token1Principal) =
-            MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
+            MockUniswapV4Wrapper(payable(address(wrapper))).totalPositionValue(sqrtRatioX96, tokenId);
 
         //since no swap has been the principal amount should be the same as the amount0 and amount1
         assertApproxEqAbs(token0Principal, amount0Spent, 1 wei);
@@ -368,10 +369,10 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         wrapper.transfer(liquidator, transferAmount);
 
-        uint256 erc6909TokensTransferred = (transferAmount * FULL_AMOUNT) / totalValueBefore;
+        uint256 erc6909TokensTransferred = (transferAmount * wrapper.FULL_AMOUNT()) / totalValueBefore;
 
         assertEq(wrapper.balanceOf(liquidator, tokenId), erc6909TokensTransferred); //erc6909 check (rounding error)
-        assertEq(wrapper.balanceOf(borrower, tokenId), FULL_AMOUNT - erc6909TokensTransferred);
+        assertEq(wrapper.balanceOf(borrower, tokenId), wrapper.FULL_AMOUNT() - erc6909TokensTransferred);
 
         assertEq(wrapper.balanceOf(liquidator), 0); // because tokenId is not enabled as collateral
         assertApproxEqAbs(wrapper.balanceOf(borrower), totalValueBefore - transferAmount, 0.001 ether); //0.001$ of difference is allowed

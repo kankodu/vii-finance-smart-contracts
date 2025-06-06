@@ -94,6 +94,8 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
     /// @notice For regular EVK vaults, it transfers the specified amount of vault shares from the sender to the receiver
     /// @dev For ERC721WrapperBase, transfers a proportional amount of ERC6909 tokens (calculated as FULL_AMOUNT * amount / balanceOf(sender)) for each enabled tokenId from the sender to the receiver.
     /// @dev no need to check if sender is being liquidated, sender can choose to do this at any time
+    /// @dev When calculating how many ERC6909 tokens to transfer, rounding is performed in favor of the sender (typically the violator).
+    /// @dev This means that the sender may end up with a slightly larger amount of ERC6909 tokens than expected, as the rounding is done in their favor.
     function transfer(address to, uint256 amount) external callThroughEVC returns (bool) {
         address sender = _msgSender();
         uint256 currentBalance = balanceOf(sender);

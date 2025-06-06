@@ -13,7 +13,6 @@ import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelp
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
-//TODO: handle native ETH transfers if currency0 is ETH
 
 contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolId public immutable poolId;
@@ -134,4 +133,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         amount0Total = amount0Principal + feesOwed0 + tokensOwed[tokenId].amount0Owed;
         amount1Total = amount1Principal + feesOwed1 + tokensOwed[tokenId].amount1Owed;
     }
+    /// @notice Allows the contract to receive ETH when `currency0` is the native ETH (address(0)).
+
+    receive() external payable {}
 }

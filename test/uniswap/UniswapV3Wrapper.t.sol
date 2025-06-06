@@ -216,7 +216,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
         //unwrap to get the underlying tokens back
-        wrapper.unwrap(borrower, tokenId, FULL_AMOUNT, borrower);
+        wrapper.unwrap(borrower, tokenId, wrapper.FULL_AMOUNT(), borrower);
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
@@ -328,10 +328,10 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
 
         wrapper.transfer(liquidator, transferAmount);
 
-        uint256 erc6909TokensTransferred = (transferAmount * FULL_AMOUNT) / totalValueBefore;
+        uint256 erc6909TokensTransferred = (transferAmount * wrapper.FULL_AMOUNT()) / totalValueBefore;
 
         assertEq(wrapper.balanceOf(liquidator, tokenId), erc6909TokensTransferred); //erc6909 check (rounding error)
-        assertEq(wrapper.balanceOf(borrower, tokenId), FULL_AMOUNT - erc6909TokensTransferred);
+        assertEq(wrapper.balanceOf(borrower, tokenId), wrapper.FULL_AMOUNT() - erc6909TokensTransferred);
 
         assertEq(wrapper.balanceOf(liquidator), 0); // because tokenId is not enabled as collateral
         assertApproxEqAbs(wrapper.balanceOf(borrower), totalValueBefore - transferAmount, 0.001 ether); //0.001$ of difference is allowed

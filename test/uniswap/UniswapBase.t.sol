@@ -45,8 +45,6 @@ contract UniswapBaseTest is Test, Fuzzers {
 
     uint256 tokenId;
 
-    uint256 constant FULL_AMOUNT = 1e30;
-
     function deployWrapper() internal virtual returns (ERC721WrapperBase) {}
 
     function setUp() public virtual {
@@ -217,6 +215,6 @@ contract UniswapBaseTest is Test, Fuzzers {
         //we know this a full liquidation so the current balanceOf of the borrower should be 0
         assertEq(wrapper.balanceOf(borrower), 0);
         //liquidator must have gotten all of the shares
-        assertEq(wrapper.balanceOf(liquidator, tokenId), FULL_AMOUNT);
+        assertEq(wrapper.balanceOf(liquidator, tokenId), wrapper.FULL_AMOUNT());
     }
 }

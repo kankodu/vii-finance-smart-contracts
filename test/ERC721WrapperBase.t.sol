@@ -39,8 +39,6 @@ contract ERC721WrapperBaseTest is Test {
 
     address operator = makeAddr("operator");
 
-    uint256 constant FULL_AMOUNT = 1000 ether;
-
     function setUp() public {
         wrapper = new ERC721WrapperBaseMock(address(evc), address(underlying), address(0), address(0));
     }
