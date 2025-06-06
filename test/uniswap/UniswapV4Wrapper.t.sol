@@ -267,7 +267,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         assertEq(wrapper.balanceOf(borrower, tokenIdMinted), wrapper.FULL_AMOUNT());
 
         startHoax(borrower);
-        wrapper.enableSkimmedTokenIdAsCollateral();
+        wrapper.enableCurrentSkimCandidateAsCollateral();
 
         uint256[] memory enabledTokenIds = wrapper.getEnabledTokenIds(borrower);
         assertEq(enabledTokenIds.length, 1);
