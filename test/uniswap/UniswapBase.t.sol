@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 import {UniswapV3Wrapper} from "src/uniswap/UniswapV3Wrapper.sol";
 import {IUniswapV3Factory} from "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultConnector.sol";
+import {EthereumVaultConnector} from "lib/ethereum-vault-connector/src/EthereumVaultConnector.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
@@ -67,8 +68,8 @@ contract UniswapBaseTest is Test, Fuzzers {
         unit0 = 10 ** IERC20Metadata(token0).decimals();
         unit1 = 10 ** IERC20Metadata(token1).decimals();
 
-        deal(token0, borrower, 100 * unit0); // 1 million token0
-        deal(token1, borrower, 100 * unit1); // 1 million token1
+        deal(token0, borrower, 100 * unit0);
+        deal(token1, borrower, 100 * unit1);
 
         FixedRateOracle fixedRateOracle = new FixedRateOracle(
             address(wrapper),

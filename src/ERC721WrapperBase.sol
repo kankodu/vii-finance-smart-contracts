@@ -18,7 +18,16 @@ interface IPartialERC20 {
 
 interface IERC721WrapperBase is IPartialERC20 {
     function wrap(uint256 tokenId, address to) external;
-    function unwrap(uint256 tokenId, address to) external;
+    function unwrap(address from, uint256 tokenId, address to) external;
+    function unwrap(address from, uint256 tokenId, uint256 amount, address to) external;
+    function enableTokenIdAsCollateral(uint256 tokenId) external returns (bool enabled);
+    function disableTokenIdAsCollateral(uint256 tokenId) external returns (bool disabled);
+    function getEnabledTokenIds(address owner) external view returns (uint256[] memory);
+    function totalTokenIdsEnabledBy(address owner) external view returns (uint256);
+    function tokenIdOfOwnerByIndex(address owner, uint256 index) external view returns (uint256);
+    function getQuote(uint256 inAmount, address base) external view returns (uint256 outAmount);
+    function skim(address to) external;
+    function enableCurrentSkimCandidateAsCollateral() external;
 }
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC20 {
@@ -39,6 +48,12 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
 
     event TokenIdEnabled(address indexed owner, uint256 indexed tokenId, bool enabled);
 
+    /// @notice Constructor for the ERC721WrapperBase contract.
+    /// @dev Initializes the contract with the provided addresses for EVC, underlying ERC721 token, price oracle, and unit of account.
+    /// @param _evc The address of the EVC contract
+    /// @param _underlying The address of the underlying ERC721 token contract to be wrapped (NonFungiblePositionManager for Uniswap V3, PositionManager for Uniswap V4 etc)
+    /// @param _oracle The address of the price oracle contract (https://docs.euler.finance/concepts/core/price-oracles/)
+    /// @param _unitOfAccount The address representing the unit of account (https://docs.euler.finance/concepts/advanced/unit-of-account/)
     constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount) ERC6909() EVCUtil(_evc) {
         evc = IEVC(_evc);
         underlying = IERC721(_underlying);
@@ -46,18 +61,18 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
         unitOfAccount = _unitOfAccount;
     }
 
-    ///@dev returns true if it wasn't already enabled, it was already enabled, it will return false
     function enableTokenIdAsCollateral(uint256 tokenId) public callThroughEVC returns (bool enabled) {
         address sender = _msgSender();
         if (totalTokenIdsEnabledBy(sender) >= MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
-        enabled = _enabledTokenIds[_msgSender()].add(tokenId);
+        enabled = _enabledTokenIds[sender].add(tokenId);
         if (enabled) emit TokenIdEnabled(sender, tokenId, true);
     }
 
     ///@dev returns true if it was enabled. if it was never enabled, it will return false
     function disableTokenIdAsCollateral(uint256 tokenId) external callThroughEVC returns (bool disabled) {
-        disabled = _enabledTokenIds[_msgSender()].remove(tokenId);
-        if (disabled) emit TokenIdEnabled(_msgSender(), tokenId, false);
+        address sender = _msgSender();
+        disabled = _enabledTokenIds[sender].remove(tokenId);
+        if (disabled) emit TokenIdEnabled(sender, tokenId, false);
     }
 
     function wrap(uint256 tokenId, address to) external callThroughEVC {

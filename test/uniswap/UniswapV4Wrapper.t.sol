@@ -176,7 +176,6 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         internal
         returns (uint256 outputAmount)
     {
-        console.log("doing the swap");
         deal(tokenIn, borrower, inputAmount);
 
         bool zeroForOne = tokenIn < tokenOut;
@@ -303,7 +302,6 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
     }
 
     function testFuzzFeeMath(int256 liquidityDelta, uint256 swapAmount) public {
-        // liquidityDelta = -19999;
         LiquidityParams memory params = LiquidityParams({
             tickLower: TickMath.MIN_TICK + 1,
             tickUpper: TickMath.MAX_TICK - 1,
@@ -311,7 +309,6 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         });
 
         swapAmount = bound(swapAmount, 10_000 * unit0, 100_000 * unit0);
-        // swapAmount = 100_00000 * unit0;
 
         (tokenId,,) = boundLiquidityParamsAndMint(params);
 
@@ -342,14 +339,6 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
     }
 
     function testFuzzTotalPositionValue(LiquidityParams memory params) public {
-        // function test_fuzz_total_positionValue() public {
-        //     ModifyLiquidityParams memory params = ModifyLiquidityParams({
-        //         tickLower: TickMath.MIN_TICK + 1,
-        //         tickUpper: TickMath.MAX_TICK - 1,
-        //         liquidityDelta: -19999,
-        //         salt: bytes32(0)
-        //     });
-
         uint256 amount0Spent;
         uint256 amount1Spent;
 
@@ -366,54 +355,5 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         //since no swap has been the principal amount should be the same as the amount0 and amount1
         assertApproxEqAbs(token0Principal, amount0Spent, 1 wei);
         assertApproxEqAbs(token1Principal, amount1Spent, 1 wei);
-    }
-
-    function test_fuzz_collect_erc20(LiquidityParams memory params) public {
-        // function test_fuzz_collect_erc20() public {
-        // ModifyLiquidityParams memory params =
-        //     ModifyLiquidityParams({tickLower: 10, tickUpper: 20, liquidityDelta: -1000, salt: bytes32(0)});
-
-        params.liquidityDelta = bound(params.liquidityDelta, 10e18, 10_000e18);
-        (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
-        params = createFuzzyLiquidityParams(params, poolKey.tickSpacing, sqrtRatioX96);
-
-        (uint256 estimatedAmount0Required, uint256 estimatedAmount1Required) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtRatioX96,
-            TickMath.getSqrtPriceAtTick(params.tickLower),
-            TickMath.getSqrtPriceAtTick(params.tickUpper),
-            uint128(uint256(params.liquidityDelta))
-        );
-
-        startHoax(borrower);
-
-        (tokenId,,) = mintPosition(
-            poolKey,
-            params.tickLower,
-            params.tickUpper,
-            estimatedAmount0Required,
-            estimatedAmount1Required,
-            uint256(params.liquidityDelta),
-            borrower
-        );
-
-        wrapper.underlying().approve(address(wrapper), tokenId);
-        wrapper.wrap(tokenId, borrower);
-
-        (uint256 token0AmountBefore,) = MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
-        console.log("token0AmountBefore", token0AmountBefore);
-
-        uint256 token0Amount = 1000 * unit0;
-        console.log("token0Amount", token0Amount);
-        swapExactInput(address(token0), address(token1), token0Amount);
-
-        (uint256 token0AmountAfter,) = MockUniswapV4Wrapper(address(wrapper)).totalPositionValue(sqrtRatioX96, tokenId);
-
-        console.log("difference", token0AmountAfter - token0AmountBefore);
-
-        uint256 expectedFeesInToken0 = token0Amount * poolKey.fee / 1e6;
-
-        console.log("expectedFeesInToken0", expectedFeesInToken0);
-
-        //dumb way to know the fees collected is to get the pool balance before and after the swap.
     }
 }
