@@ -46,12 +46,6 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         if (poolOfTokenId != address(pool)) revert InvalidPoolAddress();
     }
 
-    ///@dev we know NonFungiblePositionManager is ERC721Enumerable, we return the last tokenId that is owned by this contract
-    function _getTokenIdToSkim() internal view override returns (uint256) {
-        uint256 totalTokensOwnedByThis = IERC721Enumerable(address(underlying)).balanceOf(address(this));
-        return IERC721Enumerable(address(underlying)).tokenOfOwnerByIndex(address(this), totalTokensOwnedByThis - 1);
-    }
-
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
         (,,,,,,, uint128 liquidity,,,,) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
@@ -79,6 +73,12 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
                 amount1Max: (amount1 + proportionalShare((tokensOwed1 - amount1), amount)).toUint128()
             })
         );
+    }
+
+    ///@dev we know NonFungiblePositionManager is ERC721Enumerable, we return the last tokenId that is owned by this contract
+    function _getTokenIdToSkim() internal view override returns (uint256) {
+        uint256 totalTokensOwnedByThis = IERC721Enumerable(address(underlying)).balanceOf(address(this));
+        return IERC721Enumerable(address(underlying)).tokenOfOwnerByIndex(address(this), totalTokensOwnedByThis - 1);
     }
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
