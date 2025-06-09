@@ -103,7 +103,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
 
         (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);
-
+        //TODO: make the sure native ETH when currency0 is address(0) is handled correctly
         uint256 amount0InUnitOfAccount = getQuote(amount0, address(uint160(poolKey.currency0.toId())));
         uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
 
