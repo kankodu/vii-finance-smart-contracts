@@ -283,7 +283,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         uint256 expectedBalance = (amount0InUnitOfAccount + amount1InUnitOfAccount);
 
-        assertApproxEqAbs(wrapper.balanceOf(borrower), expectedBalance, 0.00001 ether); //0.00001$ of difference is allowed
+        assertApproxEqAbs(wrapper.balanceOf(borrower), expectedBalance, ALLOWED_PRECISION_IN_TESTS);
 
         uint256 amount0BalanceBefore = IERC20(token0).balanceOf(borrower);
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
@@ -352,7 +352,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         assertApproxEqAbs(token1Principal, amount1Spent, 1 wei);
     }
 
-    function testFuzzTransfer(LiquidityParams memory params, uint256 swapAmount, uint256 transferAmount) public {
+    function testFuzzTransferV4(LiquidityParams memory params, uint256 swapAmount, uint256 transferAmount) public {
         (tokenId,,) = boundLiquidityParamsAndMint(params);
 
         swapAmount = bound(swapAmount, 10_000 * unit0, 100_000 * unit0);
@@ -366,7 +366,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         uint256 totalValueBefore = wrapper.balanceOf(borrower);
 
-        transferAmount = bound(transferAmount, 1 + (totalValueBefore / 0.00001 ether), totalValueBefore); //minim transfer of 0.00001$
+        transferAmount = bound(transferAmount, 1 + (totalValueBefore / ALLOWED_PRECISION_IN_TESTS), totalValueBefore);
 
         wrapper.transfer(liquidator, transferAmount);
 
@@ -376,12 +376,12 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         assertEq(wrapper.balanceOf(borrower, tokenId), wrapper.FULL_AMOUNT() - erc6909TokensTransferred);
 
         assertEq(wrapper.balanceOf(liquidator), 0); // because tokenId is not enabled as collateral
-        assertApproxEqAbs(wrapper.balanceOf(borrower), totalValueBefore - transferAmount, 0.00001 ether); //0.00001$ of difference is allowed
+        assertApproxEqAbs(wrapper.balanceOf(borrower), totalValueBefore - transferAmount, ALLOWED_PRECISION_IN_TESTS);
 
         startHoax(liquidator);
         wrapper.enableTokenIdAsCollateral(tokenId);
 
-        assertApproxEqAbs(wrapper.balanceOf(liquidator), transferAmount, 0.00001 ether); //0.00001$ of difference is allowed
+        assertApproxEqAbs(wrapper.balanceOf(liquidator), transferAmount, ALLOWED_PRECISION_IN_TESTS);
         assertApproxEqRel(totalValueBefore, wrapper.balanceOf(borrower) + wrapper.balanceOf(liquidator), 1);
     }
 

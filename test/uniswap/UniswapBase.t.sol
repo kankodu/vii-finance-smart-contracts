@@ -22,6 +22,11 @@ import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositi
 contract UniswapBaseTest is Test, Fuzzers {
     uint256 constant INTERNAL_DEBT_PRECISION_SHIFT = 31;
 
+    // Allow a small margin of error due to rounding when converting token amounts to unit of account.
+    // The maximum error is 1 wei in the raw token amounts, which translates to 10 ** (18 - (token0.decimals()) + 10 ** (18- token1.decimals()) in the unit of account.
+    // This is assuming that token0 and token1 are worth almost 1 dollar
+    uint256 constant ALLOWED_PRECISION_IN_TESTS = 2 * 1e13;
+
     IEVC evc;
     IEVault eVault; //an evk vault
 
