@@ -49,7 +49,8 @@ contract UniswapBaseTest is Test, Fuzzers {
     function deployWrapper() internal virtual returns (ERC721WrapperBase) {}
 
     function setUp() public virtual {
-        vm.createSelectFork("https://eth-mainnet.g.alchemy.com/v2/tP0hVDEiLj0WU35nFeee9qlQ-84jkeQo", 22473612);
+        string memory fork_url = vm.envString("MAINNET_RPC_URL");
+        vm.createSelectFork(fork_url, 22473612);
 
         evc = IEVC(0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383);
         eVault = IEVault(0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9); //euler prime USDC
