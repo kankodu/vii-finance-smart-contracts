@@ -61,7 +61,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
         unitOfAccount = _unitOfAccount;
     }
 
-    function enableTokenIdAsCollateral(uint256 tokenId) public callThroughEVC returns (bool enabled) {
+    function enableTokenIdAsCollateral(uint256 tokenId) public returns (bool enabled) {
         address sender = _msgSender();
         if (totalTokenIdsEnabledBy(sender) >= MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
         enabled = _enabledTokenIds[sender].add(tokenId);
@@ -71,12 +71,12 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
     ///@dev returns true if it was enabled. if it was never enabled, it will return false
     function disableTokenIdAsCollateral(uint256 tokenId) external callThroughEVC returns (bool disabled) {
         address sender = _msgSender();
+        evc.requireAccountStatusCheck(sender);
         disabled = _enabledTokenIds[sender].remove(tokenId);
         if (disabled) emit TokenIdEnabled(sender, tokenId, false);
-        evc.requireAccountStatusCheck(sender);
     }
 
-    function wrap(uint256 tokenId, address to) external callThroughEVC {
+    function wrap(uint256 tokenId, address to) external {
         underlying.transferFrom(_msgSender(), address(this), tokenId);
         _wrap(tokenId, to);
     }
@@ -202,7 +202,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
         return super.transferFrom(sender, receiver, id, amount);
     }
 
-    function skim(address to) external callThroughEVC {
+    function skim(address to) external {
         uint256 tokenId = _getTokenIdToSkim();
         //in case the tokenId is not owned by this contract already, it will revert
         if (underlying.ownerOf(tokenId) != address(this)) {
@@ -215,7 +215,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC2
         _wrap(tokenId, to);
     }
 
-    function enableCurrentSkimCandidateAsCollateral() public callThroughEVC {
+    function enableCurrentSkimCandidateAsCollateral() public {
         uint256 tokenId = _getTokenIdToSkim();
         enableTokenIdAsCollateral(tokenId);
     }

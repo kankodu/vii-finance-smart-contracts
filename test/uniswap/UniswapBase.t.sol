@@ -148,14 +148,6 @@ contract UniswapBaseTest is Test, Fuzzers {
         vm.expectRevert(IEVault.E_OutstandingDebt.selector);
         eVault.disableController();
 
-        //no longer possible to disable collateral if it makes the account undercollateralized
-        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
-        evc.disableCollateral(borrower, address(wrapper));
-
-        //no longer possible to disable the tokenId as collateral if it makes the account undercollateralized
-        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
-        wrapper.disableTokenIdAsCollateral(tokenId);
-
         // Should be able to borrow up to 9, so this should fail:
 
         vm.expectRevert(IEVault.E_AccountLiquidity.selector);
@@ -165,6 +157,10 @@ contract UniswapBaseTest is Test, Fuzzers {
 
         vm.expectRevert(IEVault.E_AccountLiquidity.selector);
         evc.disableCollateral(borrower, address(wrapper));
+
+        //no longer possible to disable the tokenId as collateral if it makes the account undercollateralized
+        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
+        wrapper.disableTokenIdAsCollateral(tokenId);
 
         //unwrap should fail
         vm.expectRevert(IEVault.E_AccountLiquidity.selector);
