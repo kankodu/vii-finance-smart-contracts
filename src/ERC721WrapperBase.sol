@@ -10,27 +10,9 @@ import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721
 import {EVCUtil} from "lib/ethereum-vault-connector/src/utils/EVCUtil.sol";
 import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultConnector.sol";
 import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
+import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
 
-interface IPartialERC20 {
-    function balanceOf(address owner) external view returns (uint256);
-    function transfer(address to, uint256 amount) external returns (bool);
-}
-
-interface IERC721WrapperBase is IPartialERC20 {
-    function wrap(uint256 tokenId, address to) external;
-    function unwrap(address from, uint256 tokenId, address to) external;
-    function unwrap(address from, uint256 tokenId, uint256 amount, address to) external;
-    function enableTokenIdAsCollateral(uint256 tokenId) external returns (bool enabled);
-    function disableTokenIdAsCollateral(uint256 tokenId) external returns (bool disabled);
-    function getEnabledTokenIds(address owner) external view returns (uint256[] memory);
-    function totalTokenIdsEnabledBy(address owner) external view returns (uint256);
-    function tokenIdOfOwnerByIndex(address owner, uint256 index) external view returns (uint256);
-    function getQuote(uint256 inAmount, address base) external view returns (uint256 outAmount);
-    function skim(address to) external;
-    function enableCurrentSkimCandidateAsCollateral() external;
-}
-
-abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IPartialERC20 {
+abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721WrapperBase {
     uint256 public constant FULL_AMOUNT = 1e30;
     uint256 public constant MAX_TOKENIDS_ALLOWED = 4;
 
