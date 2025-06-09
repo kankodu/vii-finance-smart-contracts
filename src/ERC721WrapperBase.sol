@@ -11,9 +11,10 @@ import {EVCUtil} from "lib/ethereum-vault-connector/src/utils/EVCUtil.sol";
 import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultConnector.sol";
 import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
 import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721WrapperBase {
-    uint256 public constant FULL_AMOUNT = 1e30;
+    uint256 public constant FULL_AMOUNT = 1e36;
     uint256 public constant MAX_TOKENIDS_ALLOWED = 4;
 
     IERC721 public immutable underlying;
@@ -149,12 +150,12 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         if (from != address(0)) evc.requireAccountStatusCheck(from);
     }
 
-    function proportionalShare(uint256 amount, uint256 part) internal pure returns (uint256) {
-        return amount * part / FULL_AMOUNT;
+    function proportionalShare(uint256 amount, uint256 part) public pure returns (uint256) {
+        return Math.mulDiv(amount, part, FULL_AMOUNT);
     }
 
-    function normalizedToFull(uint256 amount, uint256 currentBalance) internal pure returns (uint256) {
-        return FULL_AMOUNT * amount / currentBalance;
+    function normalizedToFull(uint256 amount, uint256 currentBalance) public pure returns (uint256) {
+        return Math.mulDiv(amount, FULL_AMOUNT, currentBalance);
     }
 
     ///@dev specific to the implementation, it should return the tokenId that needs to be skimmed
