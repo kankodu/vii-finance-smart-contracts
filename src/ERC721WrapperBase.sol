@@ -36,7 +36,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     /// @param _underlying The address of the underlying ERC721 token contract to be wrapped (NonFungiblePositionManager for Uniswap V3, PositionManager for Uniswap V4 etc)
     /// @param _oracle The address of the price oracle contract (https://docs.euler.finance/concepts/core/price-oracles/)
     /// @param _unitOfAccount The address representing the unit of account (https://docs.euler.finance/concepts/advanced/unit-of-account/)
-    constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount) ERC6909() EVCUtil(_evc) {
+    constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount) EVCUtil(_evc) {
         evc = IEVC(_evc);
         underlying = IERC721(_underlying);
         oracle = IPriceOracle(_oracle);
