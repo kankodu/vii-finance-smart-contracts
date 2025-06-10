@@ -26,6 +26,14 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint256 fees1Owed;
     }
 
+    struct PositionState {
+        PositionInfo position;
+        uint128 liquidity;
+        uint256 feeGrowthInside0LastX128;
+        uint256 feeGrowthInside1LastX128;
+        uint160 sqrtRatioX96;
+    }
+
     mapping(uint256 tokenId => TokensOwed) public tokensOwed;
 
     using StateLibrary for IPoolManager;
@@ -51,30 +59,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         if (PoolId.unwrap(poolKeyOfTokenId.toId()) != PoolId.unwrap(poolId)) revert InvalidPoolId();
     }
 
-    struct PositionState {
-        PositionInfo position;
-        uint128 liquidity;
-        uint256 feeGrowthInside0LastX128;
-        uint256 feeGrowthInside1LastX128;
-        uint160 sqrtRatioX96;
-    }
-
-    function _getPositionState(uint256 tokenId) internal view returns (PositionState memory positionState) {
-        PositionInfo position = IPositionManager(address(underlying)).positionInfo(tokenId);
-        (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = poolManager
-            .getPositionInfo(poolId, address(underlying), position.tickLower(), position.tickUpper(), bytes32(tokenId));
-
-        (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
-
-        positionState = PositionState({
-            position: position,
-            liquidity: liquidity,
-            feeGrowthInside0LastX128: feeGrowthInside0LastX128,
-            feeGrowthInside1LastX128: feeGrowthInside1LastX128,
-            sqrtRatioX96: sqrtRatioX96
-        });
-    }
-
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
         PositionState memory positionState = _getPositionState(tokenId);
 
@@ -94,24 +78,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         poolKey.currency1.transfer(to, amount1 + proportionalShare(tokensOwed[tokenId].fees1Owed, amount));
     }
 
-    ///@dev For PositionManager, we get the last tokenId that was just minted
-    function _getTokenIdToSkim() internal view override returns (uint256) {
-        return IPositionManager(address(underlying)).nextTokenId() - 1;
-    }
-
-    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
-        bytes memory actions = new bytes(2);
-        actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
-        actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
-
-        //TODO: add extraData to accept amount0Min and amount1Min from the user
-        bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(tokenId, liquidity, uint128(0), uint128(0), bytes(""));
-        params[1] = abi.encode(poolKey.currency0, poolKey.currency1, recipient);
-
-        IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), block.timestamp);
-    }
-
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
         PositionState memory positionState = _getPositionState(tokenId);
 
@@ -124,21 +90,25 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
-    function _principal(PositionState memory positionState) internal pure returns (uint256, uint256) {
-        return _principal(positionState, positionState.liquidity);
+    ///@dev For PositionManager, we get the last tokenId that was just minted
+    function _getTokenIdToSkim() internal view override returns (uint256) {
+        return IPositionManager(address(underlying)).nextTokenId() - 1;
     }
 
-    function _principal(PositionState memory positionState, uint128 liquidity)
-        internal
-        pure
-        returns (uint256 amount0Principal, uint256 amount1Principal)
-    {
-        (amount0Principal, amount1Principal) = UniswapPositionValueHelper.principal(
-            positionState.sqrtRatioX96,
-            positionState.position.tickLower(),
-            positionState.position.tickUpper(),
-            liquidity
-        );
+    function _getPositionState(uint256 tokenId) internal view returns (PositionState memory positionState) {
+        PositionInfo position = IPositionManager(address(underlying)).positionInfo(tokenId);
+        (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = poolManager
+            .getPositionInfo(poolId, address(underlying), position.tickLower(), position.tickUpper(), bytes32(tokenId));
+
+        (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
+
+        positionState = PositionState({
+            position: position,
+            liquidity: liquidity,
+            feeGrowthInside0LastX128: feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128: feeGrowthInside1LastX128,
+            sqrtRatioX96: sqrtRatioX96
+        });
     }
 
     function _pendingFees(PositionState memory positionState)
@@ -158,6 +128,36 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         );
     }
 
+    function _principal(PositionState memory positionState) internal pure returns (uint256, uint256) {
+        return _principal(positionState, positionState.liquidity);
+    }
+
+    function _principal(PositionState memory positionState, uint128 liquidity)
+        internal
+        pure
+        returns (uint256 amount0Principal, uint256 amount1Principal)
+    {
+        (amount0Principal, amount1Principal) = UniswapPositionValueHelper.principal(
+            positionState.sqrtRatioX96,
+            positionState.position.tickLower(),
+            positionState.position.tickUpper(),
+            liquidity
+        );
+    }
+
+    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
+        bytes memory actions = new bytes(2);
+        actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
+        actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
+
+        //TODO: add extraData to accept amount0Min and amount1Min from the user
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, liquidity, uint128(0), uint128(0), bytes(""));
+        params[1] = abi.encode(poolKey.currency0, poolKey.currency1, recipient);
+
+        IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+    }
+
     function _total(PositionState memory positionState, uint256 tokenId)
         internal
         view
@@ -169,7 +169,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         amount0Total = amount0Principal + pendingFees0 + tokensOwed[tokenId].fees0Owed;
         amount1Total = amount1Principal + pendingFees1 + tokensOwed[tokenId].fees1Owed;
     }
-    /// @notice Allows the contract to receive ETH when `currency0` is the native ETH (address(0)).
 
+    /// @notice Allows the contract to receive ETH when `currency0` is the native ETH (address(0))
     receive() external payable {}
 }
