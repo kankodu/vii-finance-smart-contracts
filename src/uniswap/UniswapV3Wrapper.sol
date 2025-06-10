@@ -49,6 +49,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
         (,,,,,,, uint128 liquidity,,,,) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
+        //TODO: add extraData to accept amount0Min and amount1Min from the user
         (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -63,7 +64,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
         //amount0 and amount1 is the part of the liquidity
-        //token0Owed - amount0 and token1Owed - amount1 are the total fees. part of the fees needs to be sent to the recipient as well
+        //token0Owed - amount0 and token1Owed - amount1 are the total fees (the principal is always collected in the same tx). part of the fees needs to be sent to the recipient as well
 
         INonfungiblePositionManager(address(underlying)).collect(
             INonfungiblePositionManager.CollectParams({

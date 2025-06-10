@@ -37,6 +37,7 @@ import {BalanceDelta, BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/Bala
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
+import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     constructor(
@@ -47,22 +48,36 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         PoolKey memory _poolKey
     ) UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolKey) {}
 
-    function syncFeesOwned(uint256 tokenId) external returns (uint256 actualFees0, uint256 actualFees1) {
-        uint256 amount0OwedBefore = tokensOwed[tokenId].amount0Owed;
-        uint256 amount1OwedBefore = tokensOwed[tokenId].amount1Owed;
+    function _decreaseLiquidityAndRecordChange(uint256 tokenId, uint128 liquidity, address recipient)
+        internal
+        returns (uint256 amount0, uint256 amount1)
+    {
+        uint256 balance0 = poolKey.currency0.balanceOf(address(this));
+        uint256 balance1 = poolKey.currency1.balanceOf(address(this));
 
-        _syncFeesOwned(tokenId);
+        _decreaseLiquidity(tokenId, liquidity, recipient);
 
-        return
-            (tokensOwed[tokenId].amount0Owed - amount0OwedBefore, tokensOwed[tokenId].amount1Owed - amount1OwedBefore);
+        (amount0, amount1) = (
+            poolKey.currency0.balanceOf(address(this)) - balance0, poolKey.currency1.balanceOf(address(this)) - balance1
+        );
     }
 
-    function totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
-        external
-        view
-        returns (uint256 amount0Total, uint256 amount1Total)
-    {
-        return _totalPositionValue(sqrtRatioX96, tokenId);
+    function syncFeesOwned(uint256 tokenId) external returns (uint256 actualFees0, uint256 actualFees1) {
+        //decrease 0 liquidity to get the actual fees that this contract gets
+        (actualFees0, actualFees1) = _decreaseLiquidityAndRecordChange(tokenId, 0, ActionConstants.MSG_SENDER);
+
+        tokensOwed[tokenId].fees0Owed += actualFees0;
+        tokensOwed[tokenId].fees1Owed += actualFees1;
+    }
+
+    function pendingFees(uint256 tokenId) external view returns (uint256 fees0Owed, uint256 fees1Owed) {
+        PositionState memory positionState = _getPositionState(tokenId);
+        return _pendingFees(positionState);
+    }
+
+    function total(uint256 tokenId) external view returns (uint256 amount0Total, uint256 amount1Total) {
+        PositionState memory positionState = _getPositionState(tokenId);
+        return _total(positionState, tokenId);
     }
 }
 
@@ -314,17 +329,8 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         //swap so that some fees are generated
         swapExactInput(borrower, address(token0), address(token1), swapAmount);
 
-        PositionInfo position = positionManager.positionInfo(tokenId);
-
-        (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = poolManager
-            .getPositionInfo(poolId, address(positionManager), position.tickLower(), position.tickUpper(), bytes32(tokenId));
-
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-            poolManager.getFeeGrowthInside(poolId, position.tickLower(), position.tickUpper());
-
-        (uint256 expectedFees0, uint256 expectedFees1) = UniswapPositionValueHelper.feesOwed(
-            feeGrowthInside0X128, feeGrowthInside1X128, feeGrowthInside0LastX128, feeGrowthInside1LastX128, liquidity
-        );
+        (uint256 expectedFees0, uint256 expectedFees1) =
+            MockUniswapV4Wrapper(payable(address(wrapper))).pendingFees(tokenId);
 
         (uint256 actualFees0, uint256 actualFees1) =
             MockUniswapV4Wrapper(payable(address(wrapper))).syncFeesOwned(tokenId);
@@ -342,10 +348,8 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         wrapper.underlying().approve(address(wrapper), tokenId);
         wrapper.wrap(tokenId, borrower);
 
-        (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
-
         (uint256 token0Principal, uint256 token1Principal) =
-            MockUniswapV4Wrapper(payable(address(wrapper))).totalPositionValue(sqrtRatioX96, tokenId);
+            MockUniswapV4Wrapper(payable(address(wrapper))).total(tokenId);
 
         //since no swap has been the principal amount should be the same as the amount0 and amount1
         assertApproxEqAbs(token0Principal, amount0Spent, 1 wei);
