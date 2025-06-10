@@ -14,6 +14,10 @@ import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
 
+/// @title UniswapV4Wrapper
+/// @notice ERC721 wrapper for Uniswap V4 positions
+/// @dev This wrapper is intended exclusively for vanilla Uniswap V4 pools.
+/// @dev It does not support pools with custom hooks that alter the default liquidity provision behavior.
 contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolId public immutable poolId;
     PoolKey public poolKey;
@@ -39,7 +43,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     using StateLibrary for IPoolManager;
 
     error InvalidPoolId();
-
     error FeesMismatch(uint256 feesOwed0, uint256 feesOwed1, uint256 amount0, uint256 amount1);
 
     constructor(
@@ -70,10 +73,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint128 liquidityToRemove = proportionalShare(positionState.liquidity, amount).toUint128();
         (uint256 amount0, uint256 amount1) = _principal(positionState, liquidityToRemove);
 
-        //decrease proportional liquidity and send it to the recipient
         _decreaseLiquidity(tokenId, liquidityToRemove, ActionConstants.MSG_SENDER, extraData);
 
-        //send part of the fees as well
         poolKey.currency0.transfer(to, amount0 + proportionalShare(tokensOwed[tokenId].fees0Owed, amount));
         poolKey.currency1.transfer(to, amount1 + proportionalShare(tokensOwed[tokenId].fees1Owed, amount));
     }
