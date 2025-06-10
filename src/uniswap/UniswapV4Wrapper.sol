@@ -59,7 +59,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         if (PoolId.unwrap(poolKeyOfTokenId.toId()) != PoolId.unwrap(poolId)) revert InvalidPoolId();
     }
 
-    function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
+    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal override {
         PositionState memory positionState = _getPositionState(tokenId);
 
         (uint256 pendingFees0, uint256 pendingFees1) = _pendingFees(positionState);
@@ -71,7 +71,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         (uint256 amount0, uint256 amount1) = _principal(positionState, liquidityToRemove);
 
         //decrease proportional liquidity and send it to the recipient
-        _decreaseLiquidity(tokenId, liquidityToRemove, ActionConstants.MSG_SENDER);
+        _decreaseLiquidity(tokenId, liquidityToRemove, ActionConstants.MSG_SENDER, extraData);
 
         //send part of the fees as well
         poolKey.currency0.transfer(to, amount0 + proportionalShare(tokensOwed[tokenId].fees0Owed, amount));
@@ -145,17 +145,21 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         );
     }
 
-    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
+    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient, bytes calldata extraData)
+        internal
+    {
         bytes memory actions = new bytes(2);
         actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
         actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
 
-        //TODO: add extraData to accept amount0Min and amount1Min from the user
+        (uint128 amount0Min, uint128 amount1Min, uint256 deadline) =
+            extraData.length > 0 ? abi.decode(extraData, (uint128, uint128, uint256)) : (0, 0, block.timestamp);
+
         bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(tokenId, liquidity, uint128(0), uint128(0), bytes(""));
+        params[0] = abi.encode(tokenId, liquidity, amount0Min, amount1Min, bytes(""));
         params[1] = abi.encode(poolKey.currency0, poolKey.currency1, recipient);
 
-        IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+        IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), deadline);
     }
 
     function _total(PositionState memory positionState, uint256 tokenId)

@@ -48,6 +48,18 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         PoolKey memory _poolKey
     ) UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolKey) {}
 
+    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
+        bytes memory actions = new bytes(2);
+        actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
+        actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
+
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, liquidity, 0, 0, bytes(""));
+        params[1] = abi.encode(poolKey.currency0, poolKey.currency1, recipient);
+
+        IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+    }
+
     function _decreaseLiquidityAndRecordChange(uint256 tokenId, uint128 liquidity, address recipient)
         internal
         returns (uint256 amount0, uint256 amount1)
@@ -304,7 +316,18 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
         //unwrap to get the underlying tokens back
-        wrapper.unwrap(borrower, tokenId, wrapper.FULL_AMOUNT(), borrower);
+
+        wrapper.unwrap(
+            borrower,
+            tokenId,
+            wrapper.FULL_AMOUNT(),
+            borrower,
+            abi.encode(
+                uint128(amount0Spent > 0 ? amount0Spent - 1 : 0),
+                uint128(amount1Spent > 0 ? amount1Spent - 1 : 0),
+                block.timestamp
+            )
+        );
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);

@@ -217,7 +217,15 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         uint256 amount1BalanceBefore = IERC20(token1).balanceOf(borrower);
 
         //unwrap to get the underlying tokens back
-        wrapper.unwrap(borrower, tokenId, wrapper.FULL_AMOUNT(), borrower);
+        wrapper.unwrap(
+            borrower,
+            tokenId,
+            wrapper.FULL_AMOUNT(),
+            borrower,
+            abi.encode(
+                (amount0Spent > 0 ? amount0Spent - 1 : 0), (amount1Spent > 0 ? amount1Spent - 1 : 0), block.timestamp
+            )
+        );
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);

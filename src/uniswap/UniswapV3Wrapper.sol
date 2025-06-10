@@ -46,19 +46,26 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         if (poolOfTokenId != address(pool)) revert InvalidPoolAddress();
     }
 
-    function _unwrap(address to, uint256 tokenId, uint256 amount) internal override {
+    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal override {
         (,,,,,,, uint128 liquidity,,,,) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
-        //TODO: add extraData to accept amount0Min and amount1Min from the user
-        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
-            INonfungiblePositionManager.DecreaseLiquidityParams({
-                tokenId: tokenId,
-                liquidity: proportionalShare(uint256(liquidity), amount).toUint128(),
-                amount0Min: 0,
-                amount1Min: 0,
-                deadline: block.timestamp
-            })
-        );
+        uint256 amount0;
+        uint256 amount1;
+
+        {
+            (uint256 amount0Min, uint256 amount1Min, uint256 deadline) =
+                extraData.length > 0 ? abi.decode(extraData, (uint256, uint256, uint256)) : (0, 0, block.timestamp);
+
+            (amount0, amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
+                INonfungiblePositionManager.DecreaseLiquidityParams({
+                    tokenId: tokenId,
+                    liquidity: proportionalShare(uint256(liquidity), amount).toUint128(),
+                    amount0Min: amount0Min,
+                    amount1Min: amount1Min,
+                    deadline: deadline
+                })
+            );
+        }
 
         (,,,,,,,,,, uint256 tokensOwed0, uint256 tokensOwed1) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);

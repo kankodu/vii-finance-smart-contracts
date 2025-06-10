@@ -70,9 +70,12 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         underlying.transferFrom(address(this), to, tokenId);
     }
 
-    function unwrap(address from, uint256 tokenId, uint256 amount, address to) external callThroughEVC {
+    function unwrap(address from, uint256 tokenId, uint256 amount, address to, bytes calldata extraData)
+        external
+        callThroughEVC
+    {
         _burnFrom(from, tokenId, amount);
-        _unwrap(to, tokenId, amount);
+        _unwrap(to, tokenId, amount, extraData);
     }
 
     /// @notice For regular EVK vaults, it transfers the specified amount of vault shares from the sender to the receiver
@@ -133,7 +136,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         _mint(to, tokenId, FULL_AMOUNT);
     }
 
-    function _unwrap(address to, uint256 tokenId, uint256 amount) internal virtual;
+    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal virtual;
 
     function _burnFrom(address from, uint256 tokenId, uint256 amount) internal virtual {
         address sender = _msgSender();
