@@ -9,4 +9,5 @@ library Addresses {
     address constant EULER_USDC_VAULT = 0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9;
     address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 }

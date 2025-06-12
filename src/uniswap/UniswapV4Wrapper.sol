@@ -22,6 +22,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolId public immutable poolId;
     PoolKey public poolKey;
     IPoolManager public immutable poolManager;
+    address public constant ETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; //TODO: accept it from constructor or make it a constant that is valid for all networks (i.e. 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)
 
     using SafeCast for uint256;
 
@@ -85,7 +86,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         (uint256 amount0, uint256 amount1) = _total(positionState, tokenId);
 
         //TODO: make the sure native ETH when currency0 is address(0) is handled correctly
-        uint256 amount0InUnitOfAccount = getQuote(amount0, address(uint160(poolKey.currency0.toId())));
+        uint256 amount0InUnitOfAccount =
+            getQuote(amount0, poolKey.currency0.isAddressZero() ? ETH : address(uint160(poolKey.currency0.toId())));
         uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
 
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);

@@ -62,7 +62,11 @@ contract UniswapMintPositionHelper is EVCUtil {
     ) external payable callThroughEVC returns (uint256 tokenId) {
         tokenId = positionManager.nextTokenId();
 
-        IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(_msgSender(), address(positionManager), amount0Max);
+        if (!poolKey.currency0.isAddressZero()) {
+            IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(
+                _msgSender(), address(positionManager), amount0Max
+            );
+        }
         IERC20(Currency.unwrap(poolKey.currency1)).safeTransferFrom(_msgSender(), address(positionManager), amount1Max);
         bytes memory actions = new bytes(5);
         actions[0] = bytes1(uint8(Actions.MINT_POSITION));
