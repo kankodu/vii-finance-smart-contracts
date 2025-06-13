@@ -287,15 +287,19 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
     function testWrapFailIfNotTheSamePoolId() public {
         for (uint256 i = 1; i < 20; i++) {
-            (PoolKey memory poolKeyOfTokenId,) = positionManager.getPoolAndPositionInfo(tokenId);
-            if (PoolId.unwrap(poolKeyOfTokenId.toId()) == PoolId.unwrap(poolId)) {
-                continue; //skip if the poolId is the same
-            }
+            (PoolKey memory poolKeyOfTokenId,) = positionManager.getPoolAndPositionInfo(i);
+
             startHoax(wrapper.underlying().ownerOf(i));
             wrapper.underlying().approve(address(wrapper), i);
 
-            vm.expectRevert(UniswapV4Wrapper.InvalidPoolId.selector);
-            wrapper.wrap(i, borrower);
+            if (PoolId.unwrap(poolKeyOfTokenId.toId()) == PoolId.unwrap(poolId)) {
+                wrapper.wrap(i, borrower); // wrap should succeed if the poolId matches
+            } else {
+                vm.expectRevert(
+                    abi.encodeWithSelector(UniswapV4Wrapper.InvalidPoolId.selector, poolKeyOfTokenId.toId(), poolId)
+                );
+                wrapper.wrap(i, borrower);
+            }
         }
     }
 

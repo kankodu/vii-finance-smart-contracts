@@ -43,7 +43,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint160 sqrtRatioX96;
     }
 
-    error InvalidPoolId();
+    error InvalidPoolId(PoolId actualPoolId, PoolId expectedPoolId);
     error InvalidWETHAddress();
     error FeesMismatch(uint256 feesOwed0, uint256 feesOwed1, uint256 amount0, uint256 amount1);
 
@@ -69,7 +69,11 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     /// @param tokenId The token ID to validate
     function _validatePosition(uint256 tokenId) internal view override {
         (PoolKey memory poolKeyOfTokenId,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
-        if (PoolId.unwrap(poolKeyOfTokenId.toId()) != PoolId.unwrap(poolId)) revert InvalidPoolId();
+        PoolId poolIdOfTokenId = poolKeyOfTokenId.toId();
+
+        if (PoolId.unwrap(poolIdOfTokenId) != PoolId.unwrap(poolId)) {
+            revert InvalidPoolId(poolIdOfTokenId, poolId);
+        }
     }
 
     /// @notice Unwraps a position by removing proportional liquidity and send the resulting tokens and proportional fees to the recipient
