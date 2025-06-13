@@ -90,7 +90,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     }
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
-        (uint160 sqrtRatioX96,,,,,,) = pool.slot0();
+        (uint160 sqrtRatioX96,,,,,,) = pool.slot0(); //TODO: use price from oracle instead of slot0
 
         (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);
 
