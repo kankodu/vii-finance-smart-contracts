@@ -40,6 +40,8 @@ import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositi
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
+    using StateLibrary for IPoolManager;
+
     constructor(
         address _evc,
         address _positionManager,
@@ -91,6 +93,10 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     function total(uint256 tokenId) external view returns (uint256 amount0Total, uint256 amount1Total) {
         PositionState memory positionState = _getPositionState(tokenId);
         return _total(positionState, tokenId);
+    }
+
+    function getSqrtRatioX96(address, address, uint256, uint256) public view override returns (uint160 sqrtRatioX96) {
+        (sqrtRatioX96,,,) = poolManager.getSlot0(poolKey.toId());
     }
 }
 

@@ -21,6 +21,9 @@ import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {console} from "forge-std/console.sol";
 
 contract MockUniswapV3Wrapper is UniswapV3Wrapper {
     constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, address _pool)
@@ -61,6 +64,10 @@ contract MockUniswapV3Wrapper is UniswapV3Wrapper {
         returns (uint256 amount0Total, uint256 amount1Total)
     {
         return _totalPositionValue(sqrtRatioX96, tokenId);
+    }
+
+    function getSqrtRatioX96(address, address, uint256, uint256) public view override returns (uint160 sqrtRatioX96) {
+        (sqrtRatioX96,,,,,,) = pool.slot0();
     }
 }
 
@@ -157,6 +164,30 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         (tokenIdMinted, amount0Spent, amount1Spent) = mintPosition(
             borrower, estimatedAmount0Required, estimatedAmount1Required, params.tickLower, params.tickUpper
         );
+    }
+
+    function testSqrtRatioX96() public {
+        uint256 fixedPointDecimals = 1e50;
+        uint160 sqrtRatioX96 = wrapper.getSqrtRatioX96(token0, token1, unit0, unit1);
+        uint256 sqrtRatioInFixedPoint = FullMath.mulDiv(sqrtRatioX96, fixedPointDecimals, 2 ** 96);
+        // uint256 priceInFixedPoint = FullMath.mulDiv(sqrtRatioInFixedPoint, sqrtRatioInFixedPoint, fixedPointDecimals);
+
+        console.log("sqrtRatioInFixedPoint", sqrtRatioInFixedPoint);
+
+        uint256 token0PerToken1 = FullMath.mulDiv(
+            oracle.getQuote(unit0, token0, unitOfAccount),
+            fixedPointDecimals,
+            oracle.getQuote(unit1, token1, unitOfAccount)
+        );
+
+        uint256 token1PerToken0 = FullMath.mulDiv(
+            oracle.getQuote(unit1, token1, unitOfAccount),
+            fixedPointDecimals,
+            oracle.getQuote(unit0, token0, unitOfAccount)
+        );
+
+        console.log("token0PerToken1", Math.sqrt(token0PerToken1));
+        console.log("token1PerToken0", Math.sqrt(token1PerToken0));
     }
 
     function testWrapFailIfNotTheSamePoolAddress() public {

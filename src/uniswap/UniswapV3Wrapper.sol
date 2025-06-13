@@ -18,6 +18,8 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     address public immutable token0;
     address public immutable token1;
     uint24 public immutable fee;
+    uint256 public immutable unit0;
+    uint256 public immutable unit1;
 
     error InvalidPoolAddress();
 
@@ -31,9 +33,15 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         address _poolAddress
     ) ERC721WrapperBase(_evc, _nonFungiblePositionManager, _oracle, _unitOfAccount) {
         pool = IUniswapV3Pool(_poolAddress);
-        token0 = pool.token0();
-        token1 = pool.token1();
         fee = pool.fee();
+        address token0_ = pool.token0();
+        address token1_ = pool.token1();
+
+        token0 = token0_;
+        token1 = token1_;
+
+        unit0 = 10 ** _getDecimals(token0_);
+        unit1 = 10 ** _getDecimals(token1_);
 
         factory = IUniswapV3Factory(INonfungiblePositionManager(address(underlying)).factory());
     }
@@ -90,7 +98,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     }
 
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
-        (uint160 sqrtRatioX96,,,,,,) = pool.slot0(); //TODO: use price from oracle instead of slot0
+        uint160 sqrtRatioX96 = getSqrtRatioX96(token0, token1, unit0, unit1);
 
         (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);
 
