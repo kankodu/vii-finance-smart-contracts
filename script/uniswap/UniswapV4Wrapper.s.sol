@@ -41,7 +41,8 @@ contract UniswapV4WrapperScript is Script {
             _positionManager: BaseAddresses.POSITION_MANAGER,
             _oracle: IEVault(BaseAddresses.WETH_EVAULT).oracle(),
             _unitOfAccount: IEVault(BaseAddresses.WETH_EVAULT).unitOfAccount(),
-            _poolKey: poolKey
+            _poolKey: poolKey,
+            _weth: BaseAddresses.WETH
         });
 
         vm.stopBroadcast();

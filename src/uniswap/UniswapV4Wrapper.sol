@@ -22,8 +22,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     using SafeCast for uint256;
     using StateLibrary for IPoolManager;
 
-    ///@dev ETH address - TODO: accept it from constructor or make it a constant that is valid for all networks (i.e. 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)
-    address public constant ETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public immutable weth;
 
     PoolId public immutable poolId;
     IPoolManager public immutable poolManager;
@@ -45,6 +44,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     error InvalidPoolId();
+    error InvalidWETHAddress();
     error FeesMismatch(uint256 feesOwed0, uint256 feesOwed1, uint256 amount0, uint256 amount1);
 
     constructor(
@@ -52,11 +52,17 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         address _positionManager,
         address _oracle,
         address _unitOfAccount,
-        PoolKey memory _poolKey
+        PoolKey memory _poolKey,
+        address _weth
     ) ERC721WrapperBase(_evc, _positionManager, _oracle, _unitOfAccount) {
         poolKey = _poolKey;
         poolId = _poolKey.toId();
         poolManager = IPositionManager(address(_positionManager)).poolManager();
+
+        if (_poolKey.currency0.isAddressZero()) {
+            if (_weth == address(0)) revert InvalidWETHAddress();
+            weth = _weth;
+        }
     }
 
     /// @notice Validates that the position belongs to the pool that this wrapper is associated with
@@ -97,7 +103,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         //TODO: make the sure native ETH when currency0 is address(0) is handled correctly
         uint256 amount0InUnitOfAccount =
-            getQuote(amount0, poolKey.currency0.isAddressZero() ? ETH : address(uint160(poolKey.currency0.toId())));
+            getQuote(amount0, poolKey.currency0.isAddressZero() ? weth : address(uint160(poolKey.currency0.toId())));
         uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
 
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);

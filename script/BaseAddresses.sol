@@ -10,4 +10,5 @@ library BaseAddresses {
     address constant WETH_EVAULT = 0xc460A5e894FF62E7D5392096eFe285b5352545EF;
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant ETH = address(0);
+    address constant WETH = 0x4200000000000000000000000000000000000006;
 }

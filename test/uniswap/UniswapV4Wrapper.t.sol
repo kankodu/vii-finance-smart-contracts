@@ -45,8 +45,9 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         address _positionManager,
         address _oracle,
         address _unitOfAccount,
-        PoolKey memory _poolKey
-    ) UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolKey) {}
+        PoolKey memory _poolKey,
+        address _weth
+    ) UniswapV4Wrapper(_evc, _positionManager, _oracle, _unitOfAccount, _poolKey, _weth) {}
 
     function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient) internal {
         bytes memory actions = new bytes(2);
@@ -142,8 +143,9 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         poolId = poolKey.toId();
 
-        ERC721WrapperBase uniswapV4Wrapper =
-            new MockUniswapV4Wrapper(address(evc), address(positionManager), address(oracle), unitOfAccount, poolKey);
+        ERC721WrapperBase uniswapV4Wrapper = new MockUniswapV4Wrapper(
+            address(evc), address(positionManager), address(oracle), unitOfAccount, poolKey, Addresses.WETH
+        );
         mintPositionHelper = new UniswapMintPositionHelper(address(evc), address(0), address(positionManager));
 
         return uniswapV4Wrapper;
