@@ -21,6 +21,8 @@ import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {console} from "forge-std/console.sol";
 
 contract MockUniswapV3Wrapper is UniswapV3Wrapper {
     constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, address _pool)
@@ -61,6 +63,19 @@ contract MockUniswapV3Wrapper is UniswapV3Wrapper {
         returns (uint256 amount0Total, uint256 amount1Total)
     {
         return _totalPositionValue(sqrtRatioX96, tokenId);
+    }
+
+    //All of tests uses the spot price from the pool instead of the oracle
+    function getSqrtRatioX96(address, address, uint256, uint256) public view override returns (uint160 sqrtRatioX96) {
+        (sqrtRatioX96,,,,,,) = pool.slot0();
+    }
+
+    function getSqrtRatioX96FromOracle(address token0, address token1, uint256 unit0, uint256 unit1)
+        public
+        view
+        returns (uint160 sqrtRatioX96)
+    {
+        return super.getSqrtRatioX96(token0, token1, unit0, unit1);
     }
 }
 
@@ -157,6 +172,22 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         (tokenIdMinted, amount0Spent, amount1Spent) = mintPosition(
             borrower, estimatedAmount0Required, estimatedAmount1Required, params.tickLower, params.tickUpper
         );
+    }
+
+    function testGetSqrtRatioX96() public view {
+        uint256 fixedDecimals = 10 ** 18;
+        uint160 sqrtRatioX96FromOracle = MockUniswapV3Wrapper(address(wrapper)).getSqrtRatioX96FromOracle(
+            address(token0), address(token1), unit0, unit1
+        );
+
+        uint256 sqrtPriceInFixed18Decimal = Math.mulDiv(sqrtRatioX96FromOracle, fixedDecimals, 1 << 96);
+        uint256 priceInFixed18Decimal = Math.mulDiv(sqrtPriceInFixed18Decimal, sqrtPriceInFixed18Decimal, fixedDecimals);
+
+        uint256 token0PerToken1InFixed18Decimal = Math.mulDiv(
+            oracle.getQuote(unit0, token0, unitOfAccount), fixedDecimals, oracle.getQuote(unit1, token1, unitOfAccount)
+        );
+
+        assertApproxEqAbs(priceInFixed18Decimal, token0PerToken1InFixed18Decimal, 1e4);
     }
 
     function testWrapFailIfNotTheSamePoolAddress() public {

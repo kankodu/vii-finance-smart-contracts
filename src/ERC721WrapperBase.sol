@@ -12,6 +12,9 @@ import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultCo
 import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
 import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeCast} from "lib/v4-periphery/lib/v4-core/src/libraries/SafeCast.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721WrapperBase {
     uint256 public constant FULL_AMOUNT = 1e36;
@@ -116,6 +119,18 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         }
     }
 
+    function getSqrtRatioX96(address token0, address token1, uint256 unit0, uint256 unit1)
+        public
+        view
+        virtual
+        returns (uint160 sqrtRatioX96)
+    {
+        uint256 token0UnitValue = oracle.getQuote(unit0, token0, unitOfAccount);
+        uint256 token1UnitValue = oracle.getQuote(unit1, token1, unitOfAccount);
+
+        sqrtRatioX96 = SafeCast.toUint160(Math.sqrt(token0UnitValue * (1 << 96) / token1UnitValue) << 48);
+    }
+
     function getEnabledTokenIds(address owner) external view returns (uint256[] memory) {
         return _enabledTokenIds[owner].values();
     }
@@ -159,6 +174,11 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
 
     function normalizedToFull(uint256 amount, uint256 currentBalance) public pure returns (uint256) {
         return Math.mulDiv(amount, FULL_AMOUNT, currentBalance);
+    }
+
+    function _getDecimals(address token) internal view returns (uint8) {
+        (bool success, bytes memory data) = token.staticcall(abi.encodeCall(IERC20Metadata.decimals, ()));
+        return success && data.length == 32 ? abi.decode(data, (uint8)) : 18;
     }
 
     ///@dev specific to the implementation, it should return the tokenId that needs to be skimmed

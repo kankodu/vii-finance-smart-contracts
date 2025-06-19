@@ -13,6 +13,7 @@ import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelp
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
+import {Currency} from "lib/v4-periphery/lib/v4-core/src/types/Currency.sol";
 
 /// @title UniswapV4Wrapper
 /// @notice ERC721 wrapper for Uniswap V4 positions
@@ -26,6 +27,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
     PoolId public immutable poolId;
     IPoolManager public immutable poolManager;
+    uint256 public immutable unit0;
+    uint256 public immutable unit1;
 
     PoolKey public poolKey;
     mapping(uint256 tokenId => TokensOwed) public tokensOwed;
@@ -63,6 +66,9 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
             if (_weth == address(0)) revert InvalidWETHAddress();
             weth = _weth;
         }
+
+        unit0 = 10 ** _getDecimals(_getCurrencyAddress(poolKey.currency0));
+        unit1 = 10 ** _getDecimals(_getCurrencyAddress(poolKey.currency1));
     }
 
     /// @notice Validates that the position belongs to the pool that this wrapper is associated with
@@ -105,10 +111,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         (uint256 amount0, uint256 amount1) = _total(positionState, tokenId);
 
-        //TODO: make the sure native ETH when currency0 is address(0) is handled correctly
-        uint256 amount0InUnitOfAccount =
-            getQuote(amount0, poolKey.currency0.isAddressZero() ? weth : address(uint160(poolKey.currency0.toId())));
-        uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
+        uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(poolKey.currency0));
+        uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(poolKey.currency1));
 
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
@@ -129,14 +133,14 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = poolManager
             .getPositionInfo(poolId, address(underlying), position.tickLower(), position.tickUpper(), bytes32(tokenId));
 
-        (uint160 sqrtRatioX96,,,) = poolManager.getSlot0(poolId);
-
         positionState = PositionState({
             position: position,
             liquidity: liquidity,
             feeGrowthInside0LastX128: feeGrowthInside0LastX128,
             feeGrowthInside1LastX128: feeGrowthInside1LastX128,
-            sqrtRatioX96: sqrtRatioX96 //TODO: use price from oracle instead of slot0
+            sqrtRatioX96: getSqrtRatioX96(
+                _getCurrencyAddress(poolKey.currency0), _getCurrencyAddress(poolKey.currency1), unit0, unit1
+            )
         });
     }
 
@@ -249,6 +253,10 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         } else {
             (amount0Min, amount1Min, deadline) = (0, 0, block.timestamp);
         }
+    }
+
+    function _getCurrencyAddress(Currency currency) internal view returns (address) {
+        return currency.isAddressZero() ? weth : address(uint160(currency.toId()));
     }
 
     /// @notice Allows the contract to receive ETH when `currency0` is the native ETH (address(0))
