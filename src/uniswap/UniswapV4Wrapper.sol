@@ -111,9 +111,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         (uint256 amount0, uint256 amount1) = _total(positionState, tokenId);
 
-        uint256 amount0InUnitOfAccount =
-            getQuote(amount0, poolKey.currency0.isAddressZero() ? weth : address(uint160(poolKey.currency0.toId())));
-        uint256 amount1InUnitOfAccount = getQuote(amount1, address(uint160(poolKey.currency1.toId())));
+        uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(poolKey.currency0));
+        uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(poolKey.currency1));
 
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
@@ -256,8 +255,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         }
     }
 
-    function _getCurrencyAddress(Currency currency) internal pure returns (address) {
-        return address(uint160(currency.toId()));
+    function _getCurrencyAddress(Currency currency) internal view returns (address) {
+        return currency.isAddressZero() ? weth : address(uint160(currency.toId()));
     }
 
     /// @notice Allows the contract to receive ETH when `currency0` is the native ETH (address(0))

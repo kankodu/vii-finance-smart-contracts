@@ -38,6 +38,7 @@ import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelp
 import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     using StateLibrary for IPoolManager;
@@ -95,8 +96,17 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         return _total(positionState, tokenId);
     }
 
+    //All of tests uses the spot price from the pool instead of the oracle
     function getSqrtRatioX96(address, address, uint256, uint256) public view override returns (uint160 sqrtRatioX96) {
         (sqrtRatioX96,,,) = poolManager.getSlot0(poolKey.toId());
+    }
+
+    function getSqrtRatioX96FromOracle(address token0, address token1, uint256 unit0, uint256 unit1)
+        public
+        view
+        returns (uint160 sqrtRatioX96)
+    {
+        return super.getSqrtRatioX96(token0, token1, unit0, unit1);
     }
 }
 
@@ -289,6 +299,23 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
             uint256(params.liquidityDelta),
             borrower
         );
+    }
+
+    function testGetSqrtRatioX96() public {
+        uint256 fixedDecimals = 10 ** 18;
+        uint160 sqrtRatioX96FromOracle = MockUniswapV4Wrapper(payable(address(wrapper))).getSqrtRatioX96FromOracle(
+            address(token0), address(token1), unit0, unit1
+        );
+
+        uint256 sqrtPriceInFixed18Decimal = Math.mulDiv(sqrtRatioX96FromOracle, fixedDecimals, 1 << 96);
+
+        uint256 priceInFixed18Decimal = Math.mulDiv(sqrtPriceInFixed18Decimal, sqrtPriceInFixed18Decimal, fixedDecimals);
+
+        uint256 token0PerToken1InFixed18Decimal = Math.mulDiv(
+            oracle.getQuote(unit0, token0, unitOfAccount), fixedDecimals, oracle.getQuote(unit1, token1, unitOfAccount)
+        );
+
+        assertApproxEqAbs(priceInFixed18Decimal, token0PerToken1InFixed18Decimal, 1e6);
     }
 
     function testWrapFailIfNotTheSamePoolId() public {
