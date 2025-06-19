@@ -301,7 +301,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         );
     }
 
-    function testGetSqrtRatioX96() public {
+    function testGetSqrtRatioX96() public view {
         uint256 fixedDecimals = 10 ** 18;
         uint160 sqrtRatioX96FromOracle = MockUniswapV4Wrapper(payable(address(wrapper))).getSqrtRatioX96FromOracle(
             address(token0), address(token1), unit0, unit1
