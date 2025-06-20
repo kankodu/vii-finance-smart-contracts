@@ -169,6 +169,19 @@ contract UniswapBaseTest is Test, Fuzzers {
         vm.expectRevert(IEVault.E_AccountLiquidity.selector);
         wrapper.disableTokenIdAsCollateral(tokenId);
 
+        //no longer possible to transfer the ERC6909 tokens
+        uint256 tokensToTransfer = wrapper.FULL_AMOUNT();
+        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
+        wrapper.transfer(address(1), tokenId, tokensToTransfer);
+
+        //no longer possible to transferFrom the ERC6909 tokens either
+        wrapper.approve(address(1), tokenId, tokensToTransfer);
+        startHoax(address(1));
+        vm.expectRevert(IEVault.E_AccountLiquidity.selector);
+        wrapper.transferFrom(borrower, address(1), tokenId, tokensToTransfer);
+
+        startHoax(borrower);
+
         //unwrap should fail
         vm.expectRevert(IEVault.E_AccountLiquidity.selector);
         wrapper.unwrap(borrower, tokenId, borrower);
