@@ -9,6 +9,7 @@ import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {FixedRateOracle} from "lib/euler-price-oracle/src/adapter/fixed/FixedRateOracle.sol";
 
 contract UniswapV4WrapperScript is Script {
     UniswapV4Wrapper public uniswapV4Wrapper;
@@ -44,6 +45,12 @@ contract UniswapV4WrapperScript is Script {
             _poolKey: poolKey,
             _weth: BaseAddresses.WETH
         });
+
+        new FixedRateOracle(
+            address(uniswapV4Wrapper),
+            BaseAddresses.USD,
+            1e18 // 1:1 price, This is because we know unitOfAccount is usd and it's decimals are 18
+        );
 
         vm.stopBroadcast();
     }

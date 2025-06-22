@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {UniswapV3Wrapper} from "src/uniswap/UniswapV3Wrapper.sol";
 import {BaseAddresses} from "script/BaseAddresses.sol";
 import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
+import {FixedRateOracle} from "lib/euler-price-oracle/src/adapter/fixed/FixedRateOracle.sol";
 
 contract UniswapV3WrapperScript is Script {
     UniswapV3Wrapper public uniswapV3Wrapper;
@@ -23,6 +24,12 @@ contract UniswapV3WrapperScript is Script {
             _unitOfAccount: IEVault(BaseAddresses.WETH_EVAULT).unitOfAccount(),
             _poolAddress: poolAddress
         });
+
+        new FixedRateOracle(
+            address(uniswapV3Wrapper),
+            BaseAddresses.USD,
+            1e18 // 1:1 price, This is because we know unitOfAccount is usd and it's decimals are 18
+        );
 
         vm.stopBroadcast();
     }
