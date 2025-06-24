@@ -14,10 +14,11 @@ contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
 
     event UniswapV4WrapperCreated(
         address indexed uniswapV4Wrapper,
+        address indexed fixedRateOracle,
         PoolId indexed poolId,
-        address indexed oracle,
+        address oracle,
         address unitOfAccount,
-        address fixedRateOracle
+        PoolKey poolKey
     );
 
     constructor(address _evc, address _positionManager, address _weth) BaseUniswapWrapperFactory(_evc) {
@@ -36,7 +37,7 @@ contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
 
         fixedRateOracle = _createFixedRateOracle(uniswapV4Wrapper, unitOfAccount);
 
-        emit UniswapV4WrapperCreated(uniswapV4Wrapper, poolId, oracle, unitOfAccount, fixedRateOracle);
+        emit UniswapV4WrapperCreated(uniswapV4Wrapper, fixedRateOracle, poolId, oracle, unitOfAccount, poolKey);
     }
 
     function _getWrapperSalt(address oracle, address unitOfAccount, PoolId poolId) internal view returns (bytes32) {

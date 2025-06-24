@@ -30,11 +30,21 @@ contract UniswapV3WrapperFactoryTest is Test {
 
     function testCreateUniswapV3Wrapper() public {
         address poolAddress = address(new MockUniswapV3Pool());
+
+        address expectedWrapperAddress = factory.getUniswapV3WrapperAddress(oracle, unitOfAccount, poolAddress);
+        address expectedFixedRateOracleAddress =
+            factory.getFixedRateOracleAddress(expectedWrapperAddress, unitOfAccount);
+
+        vm.expectEmit();
+        emit UniswapV3WrapperFactory.UniswapV3WrapperCreated(
+            expectedWrapperAddress, expectedFixedRateOracleAddress, poolAddress, oracle, unitOfAccount
+        );
+
         (address uniswapV3Wrapper, address fixedRateOracle) =
             factory.createUniswapV3Wrapper(oracle, unitOfAccount, poolAddress);
 
-        assertEq(uniswapV3Wrapper, factory.getUniswapV3WrapperAddress(oracle, unitOfAccount, poolAddress));
-        assertEq(fixedRateOracle, factory.getFixedRateOracleAddress(uniswapV3Wrapper, unitOfAccount));
+        assertEq(uniswapV3Wrapper, expectedWrapperAddress);
+        assertEq(fixedRateOracle, expectedFixedRateOracleAddress);
 
         assertTrue(factory.isUniswapV3WrapperValid(uniswapV3Wrapper));
         assertTrue(factory.isFixedRateOracleValid(fixedRateOracle));

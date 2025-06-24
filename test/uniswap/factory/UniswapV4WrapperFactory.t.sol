@@ -40,11 +40,21 @@ contract UniswapV4WrapperFactoryTest is Test {
             tickSpacing: tickSpacing,
             hooks: IHooks(hooks)
         });
+
+        address expectedWrapperAddress = factory.getUniswapV4WrapperAddress(oracle, unitOfAccount, poolKey);
+        address expectedFixedRateOracleAddress =
+            factory.getFixedRateOracleAddress(expectedWrapperAddress, unitOfAccount);
+
+        vm.expectEmit();
+        emit UniswapV4WrapperFactory.UniswapV4WrapperCreated(
+            expectedWrapperAddress, expectedFixedRateOracleAddress, poolKey.toId(), oracle, unitOfAccount, poolKey
+        );
+
         (address uniswapV4Wrapper, address fixedRateOracle) =
             factory.createUniswapV4Wrapper(oracle, unitOfAccount, poolKey);
 
-        assertEq(uniswapV4Wrapper, factory.getUniswapV4WrapperAddress(oracle, unitOfAccount, poolKey));
-        assertEq(fixedRateOracle, factory.getFixedRateOracleAddress(uniswapV4Wrapper, unitOfAccount));
+        assertEq(uniswapV4Wrapper, expectedWrapperAddress);
+        assertEq(fixedRateOracle, expectedFixedRateOracleAddress);
 
         assertTrue(factory.isUniswapV4WrapperValid(payable(uniswapV4Wrapper)));
         assertTrue(factory.isFixedRateOracleValid(fixedRateOracle));
