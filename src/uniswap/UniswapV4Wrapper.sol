@@ -93,13 +93,13 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         (uint256 pendingFees0, uint256 pendingFees1) = _pendingFees(positionState);
         _accumulateFees(tokenId, pendingFees0, pendingFees1);
 
-        uint128 liquidityToRemove = proportionalShare(positionState.liquidity, amount).toUint128();
+        uint128 liquidityToRemove = proportionalShare(tokenId, positionState.liquidity, amount).toUint128();
         (uint256 amount0, uint256 amount1) = _principal(positionState, liquidityToRemove);
 
         _decreaseLiquidity(tokenId, liquidityToRemove, ActionConstants.MSG_SENDER, extraData);
 
-        poolKey.currency0.transfer(to, amount0 + proportionalShare(tokensOwed[tokenId].fees0Owed, amount));
-        poolKey.currency1.transfer(to, amount1 + proportionalShare(tokensOwed[tokenId].fees1Owed, amount));
+        poolKey.currency0.transfer(to, amount0 + proportionalShare(tokenId, tokensOwed[tokenId].fees0Owed, amount));
+        poolKey.currency1.transfer(to, amount1 + proportionalShare(tokenId, tokensOwed[tokenId].fees1Owed, amount));
     }
 
     /// @notice Calculates the proportional value of a position in unit of account terms
@@ -114,7 +114,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(poolKey.currency0));
         uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(poolKey.currency1));
 
-        return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
+        return proportionalShare(tokenId, amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
     /// @notice Gets the token ID that was just minted

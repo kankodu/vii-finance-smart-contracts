@@ -57,23 +57,8 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal override {
         (,,,,,,, uint128 liquidity,,,,) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
-        uint256 amount0;
-        uint256 amount1;
-
-        {
-            (uint256 amount0Min, uint256 amount1Min, uint256 deadline) =
-                extraData.length > 0 ? abi.decode(extraData, (uint256, uint256, uint256)) : (0, 0, block.timestamp);
-
-            (amount0, amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
-                INonfungiblePositionManager.DecreaseLiquidityParams({
-                    tokenId: tokenId,
-                    liquidity: proportionalShare(uint256(liquidity), amount).toUint128(),
-                    amount0Min: amount0Min,
-                    amount1Min: amount1Min,
-                    deadline: deadline
-                })
-            );
-        }
+        (uint256 amount0, uint256 amount1) =
+            _decreaseLiquidity(tokenId, proportionalShare(tokenId, uint256(liquidity), amount).toUint128(), extraData);
 
         (,,,,,,,,,, uint256 tokensOwed0, uint256 tokensOwed1) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
@@ -85,8 +70,26 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
             INonfungiblePositionManager.CollectParams({
                 tokenId: tokenId,
                 recipient: to,
-                amount0Max: (amount0 + proportionalShare((tokensOwed0 - amount0), amount)).toUint128(),
-                amount1Max: (amount1 + proportionalShare((tokensOwed1 - amount1), amount)).toUint128()
+                amount0Max: (amount0 + proportionalShare(tokenId, (tokensOwed0 - amount0), amount)).toUint128(),
+                amount1Max: (amount1 + proportionalShare(tokenId, (tokensOwed1 - amount1), amount)).toUint128()
+            })
+        );
+    }
+
+    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, bytes calldata extraData)
+        internal
+        returns (uint256 amount0, uint256 amount1)
+    {
+        (uint256 amount0Min, uint256 amount1Min, uint256 deadline) =
+            extraData.length > 0 ? abi.decode(extraData, (uint256, uint256, uint256)) : (0, 0, block.timestamp);
+
+        (amount0, amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: liquidity,
+                amount0Min: amount0Min,
+                amount1Min: amount1Min,
+                deadline: deadline
             })
         );
     }
@@ -105,7 +108,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         uint256 amount0InUnitOfAccount = getQuote(amount0, token0);
         uint256 amount1InUnitOfAccount = getQuote(amount1, token1);
 
-        return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
+        return proportionalShare(tokenId, amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
     function _totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
