@@ -30,8 +30,15 @@ contract UniswapMintPositionHelper is EVCUtil {
         callThroughEVC
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
-        IERC20(params.token0).safeTransferFrom(_msgSender(), address(this), params.amount0Desired);
-        IERC20(params.token1).safeTransferFrom(_msgSender(), address(this), params.amount1Desired);
+        if (params.amount0Desired != 0) {
+            IERC20(params.token0).safeTransferFrom(_msgSender(), address(this), params.amount0Desired);
+        }
+        if (params.amount1Desired != 0) {
+            IERC20(params.token1).safeTransferFrom(_msgSender(), address(this), params.amount1Desired);
+        }
+
+        params.amount0Desired = IERC20(params.token0).balanceOf(address(this));
+        params.amount1Desired = IERC20(params.token1).balanceOf(address(this));
 
         IERC20(params.token0).forceApprove(address(nonfungiblePositionManager), params.amount0Desired);
         IERC20(params.token1).forceApprove(address(nonfungiblePositionManager), params.amount1Desired);
@@ -62,12 +69,23 @@ contract UniswapMintPositionHelper is EVCUtil {
     ) external payable callThroughEVC returns (uint256 tokenId) {
         tokenId = positionManager.nextTokenId();
 
-        if (!poolKey.currency0.isAddressZero()) {
-            IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(
-                _msgSender(), address(positionManager), amount0Max
-            );
+        if (amount0Max != 0) {
+            if (!poolKey.currency0.isAddressZero()) {
+                IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(_msgSender(), address(this), amount0Max);
+            }
         }
-        IERC20(Currency.unwrap(poolKey.currency1)).safeTransferFrom(_msgSender(), address(positionManager), amount1Max);
+        if (amount1Max != 0) {
+            IERC20(Currency.unwrap(poolKey.currency1)).safeTransferFrom(_msgSender(), address(this), amount1Max);
+        }
+
+        amount0Max = SafeCast.toUint128(poolKey.currency0.balanceOf(address(this)));
+        amount1Max = SafeCast.toUint128(poolKey.currency1.balanceOf(address(this)));
+
+        if (!poolKey.currency0.isAddressZero()) {
+            poolKey.currency0.transfer(address(positionManager), amount0Max);
+        }
+        poolKey.currency1.transfer(address(positionManager), amount1Max);
+
         bytes memory actions = new bytes(5);
         actions[0] = bytes1(uint8(Actions.MINT_POSITION));
         actions[1] = bytes1(uint8(Actions.SETTLE)); //necessary because we don't want funds to be pulled through permit2
