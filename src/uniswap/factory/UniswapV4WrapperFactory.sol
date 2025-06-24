@@ -2,16 +2,13 @@
 pragma solidity ^0.8.13;
 
 import {UniswapV4Wrapper} from "src/uniswap/UniswapV4Wrapper.sol";
-import {FixedRateOracle} from "lib/euler-price-oracle/src/adapter/fixed/FixedRateOracle.sol";
-import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {Create2} from "lib/openzeppelin-contracts/contracts/utils/Create2.sol";
+import {BaseUniswapWrapperFactory} from "src/uniswap/factory/BaseUniswapWrapperFactory.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
-contract UniswapV4WrapperFactory {
-    address public immutable evc;
+contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
     address public immutable positionManager;
     address public immutable weth;
 
@@ -23,8 +20,7 @@ contract UniswapV4WrapperFactory {
         address fixedRateOracle
     );
 
-    constructor(address _evc, address _positionManager, address _weth) {
-        evc = _evc;
+    constructor(address _evc, address _positionManager, address _weth) BaseUniswapWrapperFactory(_evc) {
         positionManager = _positionManager;
         weth = _weth;
     }
@@ -38,28 +34,13 @@ contract UniswapV4WrapperFactory {
         uniswapV4Wrapper =
             address(new UniswapV4Wrapper{salt: wrapperSalt}(evc, positionManager, oracle, unitOfAccount, poolKey, weth));
 
-        uint256 unit = 10 ** _getDecimals(unitOfAccount);
-        bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapV4Wrapper, unitOfAccount, unit);
-        fixedRateOracle = address(new FixedRateOracle{salt: fixedRateOracleSalt}(uniswapV4Wrapper, unitOfAccount, unit)); //1:1 price
+        fixedRateOracle = _createFixedRateOracle(uniswapV4Wrapper, unitOfAccount);
 
         emit UniswapV4WrapperCreated(uniswapV4Wrapper, poolId, oracle, unitOfAccount, fixedRateOracle);
     }
 
-    function _getDecimals(address token) internal view returns (uint8) {
-        (bool success, bytes memory data) = token.staticcall(abi.encodeCall(IERC20Metadata.decimals, ()));
-        return success && data.length == 32 ? abi.decode(data, (uint8)) : 18;
-    }
-
     function _getWrapperSalt(address oracle, address unitOfAccount, PoolId poolId) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(evc, positionManager, oracle, unitOfAccount, PoolId.unwrap(poolId)));
-    }
-
-    function _getFixedRateOracleSalt(address uniswapV4Wrapper, address unitOfAccount, uint256 unit)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(uniswapV4Wrapper, unitOfAccount, unit));
     }
 
     function getUniswapV4WrapperBytecode(address oracle, address unitOfAccount, PoolKey memory poolKey)
@@ -71,11 +52,6 @@ contract UniswapV4WrapperFactory {
         return abi.encodePacked(bytecode, abi.encode(evc, positionManager, oracle, unitOfAccount, poolKey, weth));
     }
 
-    function _computeCreate2Address(bytes32 salt, bytes memory bytecode) internal view returns (address) {
-        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(bytecode)));
-        return address(uint160(uint256(hash)));
-    }
-
     function getUniswapV4WrapperAddress(address oracle, address unitOfAccount, PoolKey memory poolKey)
         public
         view
@@ -85,23 +61,6 @@ contract UniswapV4WrapperFactory {
         bytes32 wrapperSalt = _getWrapperSalt(oracle, unitOfAccount, poolId);
         bytes memory bytecode = getUniswapV4WrapperBytecode(oracle, unitOfAccount, poolKey);
         return _computeCreate2Address(wrapperSalt, bytecode);
-    }
-
-    function getFixedRateOracleBytecode(address uniswapV4Wrapper, address unitOfAccount)
-        public
-        view
-        returns (bytes memory)
-    {
-        uint256 unit = 10 ** _getDecimals(unitOfAccount);
-        bytes memory bytecode = type(FixedRateOracle).creationCode;
-        return abi.encodePacked(bytecode, abi.encode(uniswapV4Wrapper, unitOfAccount, unit));
-    }
-
-    function getFixedRateOracleAddress(address uniswapV4Wrapper, address unitOfAccount) public view returns (address) {
-        uint256 unit = 10 ** _getDecimals(unitOfAccount);
-        bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapV4Wrapper, unitOfAccount, unit);
-        bytes memory bytecode = getFixedRateOracleBytecode(uniswapV4Wrapper, unitOfAccount);
-        return _computeCreate2Address(fixedRateOracleSalt, bytecode);
     }
 
     //a helper function to check if a wrapper was deployed or will be using this factory
@@ -117,12 +76,5 @@ contract UniswapV4WrapperFactory {
             poolKey
         );
         return expectedAddress == uniswapV4WrapperToCheck;
-    }
-
-    function isFixedRateOracleValid(address fixedRateOracleToCheck) external view returns (bool) {
-        address expectedAddress = getFixedRateOracleAddress(
-            FixedRateOracle(fixedRateOracleToCheck).base(), FixedRateOracle(fixedRateOracleToCheck).quote()
-        );
-        return expectedAddress == fixedRateOracleToCheck;
     }
 }
