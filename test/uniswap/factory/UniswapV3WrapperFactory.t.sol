@@ -2,6 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {UniswapV3WrapperFactory} from "src/uniswap/factory/UniswapV3WrapperFactory.sol";
+import {UniswapV3Wrapper} from "src/uniswap/UniswapV3Wrapper.sol";
+import {FixedRateOracle} from "lib/euler-price-oracle/src/adapter/fixed/FixedRateOracle.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract MockUniswapV3Pool {
@@ -33,6 +35,18 @@ contract UniswapV3WrapperFactoryTest is Test {
 
         assertEq(uniswapV3Wrapper, factory.getUniswapV3WrapperAddress(oracle, unitOfAccount, poolAddress));
         assertEq(fixedRateOracle, factory.getFixedRateOracleAddress(uniswapV3Wrapper, unitOfAccount));
+
+        assertTrue(factory.isUniswapV3WrapperValid(uniswapV3Wrapper));
+        assertTrue(factory.isFixedRateOracleValid(fixedRateOracle));
+
+        address uniswapV3WrapperDeployedWithoutFactory =
+            address(new UniswapV3Wrapper(evc, nonFungiblePositionManager, oracle, unitOfAccount, poolAddress));
+
+        address fixedRateOracleDeployedWithoutFactory =
+            address(new FixedRateOracle(uniswapV3WrapperDeployedWithoutFactory, unitOfAccount, 10 ** 18));
+
+        assertFalse(factory.isUniswapV3WrapperValid(uniswapV3WrapperDeployedWithoutFactory));
+        assertFalse(factory.isFixedRateOracleValid(fixedRateOracleDeployedWithoutFactory));
 
         //trying to create the same wrapper again
         vm.expectRevert(); //reverts with create2Collision

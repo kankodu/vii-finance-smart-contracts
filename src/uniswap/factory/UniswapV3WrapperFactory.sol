@@ -76,7 +76,7 @@ contract UniswapV3WrapperFactory {
     }
 
     function getUniswapV3WrapperAddress(address oracle, address unitOfAccount, address poolAddress)
-        external
+        public
         view
         returns (address)
     {
@@ -95,14 +95,27 @@ contract UniswapV3WrapperFactory {
         return abi.encodePacked(bytecode, abi.encode(uniswapV3Wrapper, unitOfAccount, unit));
     }
 
-    function getFixedRateOracleAddress(address uniswapV3Wrapper, address unitOfAccount)
-        external
-        view
-        returns (address)
-    {
+    function getFixedRateOracleAddress(address uniswapV3Wrapper, address unitOfAccount) public view returns (address) {
         uint256 unit = 10 ** _getDecimals(unitOfAccount);
         bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapV3Wrapper, unitOfAccount, unit);
         bytes memory bytecode = getFixedRateOracleBytecode(uniswapV3Wrapper, unitOfAccount);
         return _computeCreate2Address(fixedRateOracleSalt, bytecode);
+    }
+
+    //a helper function to check if a wrapper was deployed or will be using this factory
+    function isUniswapV3WrapperValid(address uniswapV3WrapperToCheck) external view returns (bool) {
+        address expectedAddress = getUniswapV3WrapperAddress(
+            address(UniswapV3Wrapper(uniswapV3WrapperToCheck).oracle()),
+            UniswapV3Wrapper(uniswapV3WrapperToCheck).unitOfAccount(),
+            address(UniswapV3Wrapper(uniswapV3WrapperToCheck).pool())
+        );
+        return expectedAddress == uniswapV3WrapperToCheck;
+    }
+
+    function isFixedRateOracleValid(address fixedRateOracleToCheck) external view returns (bool) {
+        address expectedAddress = getFixedRateOracleAddress(
+            FixedRateOracle(fixedRateOracleToCheck).base(), FixedRateOracle(fixedRateOracleToCheck).quote()
+        );
+        return expectedAddress == fixedRateOracleToCheck;
     }
 }
