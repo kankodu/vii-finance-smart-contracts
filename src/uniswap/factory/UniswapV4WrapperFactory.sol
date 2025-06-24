@@ -64,7 +64,7 @@ contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
         return _computeCreate2Address(wrapperSalt, bytecode);
     }
 
-    //a helper function to check if a wrapper was deployed or will be using this factory
+    //check if uniswapV4Wrapper was created by this factory
     function isUniswapV4WrapperValid(address payable uniswapV4WrapperToCheck) external view returns (bool) {
         (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
             UniswapV4Wrapper(uniswapV4WrapperToCheck).poolKey();

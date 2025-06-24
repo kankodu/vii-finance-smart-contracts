@@ -61,7 +61,7 @@ contract UniswapV3WrapperFactory is BaseUniswapWrapperFactory {
         return _computeCreate2Address(wrapperSalt, bytecode);
     }
 
-    //a helper function to check if a wrapper was deployed or will be using this factory
+    //check if uniswapV3Wrapper was created by this factory
     function isUniswapV3WrapperValid(address uniswapV3WrapperToCheck) external view returns (bool) {
         address expectedAddress = getUniswapV3WrapperAddress(
             address(UniswapV3Wrapper(uniswapV3WrapperToCheck).oracle()),
