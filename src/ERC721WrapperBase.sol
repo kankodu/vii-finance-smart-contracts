@@ -8,7 +8,6 @@ import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/
 import {Context} from "lib/openzeppelin-contracts/contracts/utils/Context.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import {EVCUtil} from "lib/ethereum-vault-connector/src/utils/EVCUtil.sol";
-import {IEVC} from "lib/ethereum-vault-connector/src/interfaces/IEthereumVaultConnector.sol";
 import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
 import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
@@ -41,7 +40,6 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     /// @param _oracle The address of the price oracle contract (https://docs.euler.finance/concepts/core/price-oracles/)
     /// @param _unitOfAccount The address representing the unit of account (https://docs.euler.finance/concepts/advanced/unit-of-account/)
     constructor(address _evc, address _underlying, address _oracle, address _unitOfAccount) EVCUtil(_evc) {
-        evc = IEVC(_evc);
         underlying = IERC721(_underlying);
         oracle = IPriceOracle(_oracle);
         unitOfAccount = _unitOfAccount;
@@ -57,8 +55,8 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     ///@dev returns true if it was enabled. if it was never enabled, it will return false
     function disableTokenIdAsCollateral(uint256 tokenId) external callThroughEVC returns (bool disabled) {
         address sender = _msgSender();
-        evc.requireAccountStatusCheck(sender);
         disabled = _enabledTokenIds[sender].remove(tokenId);
+        evc.requireAccountStatusCheck(sender);
         if (disabled) emit TokenIdEnabled(sender, tokenId, false);
     }
 
@@ -73,7 +71,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         underlying.transferFrom(address(this), to, tokenId);
     }
 
-    function unwrap(address from, uint256 tokenId, uint256 amount, address to, bytes calldata extraData)
+    function unwrap(address from, uint256 tokenId, address to, uint256 amount, bytes calldata extraData)
         external
         callThroughEVC
     {
@@ -148,7 +146,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     function _validatePosition(uint256 tokenId) internal view virtual;
 
     /// @dev assumes that the tokenId is already owned by this address
-    function _wrap(uint256 tokenId, address to) internal {
+    function _wrap(uint256 tokenId, address to) private {
         _validatePosition(tokenId);
         _mint(to, tokenId, FULL_AMOUNT);
     }

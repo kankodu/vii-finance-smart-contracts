@@ -47,10 +47,10 @@ contract ERC721WrapperBaseTest is Test {
         uint256 totalTokenIdsEnabledBefore = wrapper.totalTokenIdsEnabledBy(address(this));
         //it should return TokenIdEnabled event
         vm.expectEmit();
-
         emit ERC721WrapperBase.TokenIdEnabled(address(this), tokenId, true);
 
         assertTrue(wrapper.enableTokenIdAsCollateral(tokenId));
+
         assertEq(wrapper.totalTokenIdsEnabledBy(address(this)), totalTokenIdsEnabledBefore + 1);
         assertEq(wrapper.tokenIdOfOwnerByIndex(address(this), totalTokenIdsEnabledBefore), tokenId);
     }
@@ -121,6 +121,16 @@ contract ERC721WrapperBaseTest is Test {
         unwrap(tokenId, address(this), address(this));
     }
 
+    function test_partialUnwrap(uint256 tokenId, uint256 unwrapAmount) public {
+        wrap(tokenId, address(this));
+
+        unwrapAmount = bound(unwrapAmount, 0, wrapper.FULL_AMOUNT());
+        wrapper.unwrap(address(this), tokenId, address(this), unwrapAmount, "");
+
+        assertEq(wrapper.balanceOf(address(this), tokenId), wrapper.FULL_AMOUNT() - unwrapAmount);
+        assertEq(underlying.ownerOf(tokenId), address(wrapper));
+    }
+
     function test_unwrapFrom(uint256 tokenId) public {
         wrap(tokenId, address(this));
 
@@ -150,7 +160,7 @@ contract ERC721WrapperBaseTest is Test {
         assertEq(enabledTokenIds[0], 1);
 
         //if user splits tokenId then the balance should be be decreased as well
-        wrapper.transfer(address(1), wrapper.FULL_AMOUNT());
+        assertTrue(wrapper.transfer(address(1), wrapper.FULL_AMOUNT()));
         assertEq(wrapper.balanceOf(address(this)), wrapper.FULL_AMOUNT());
     }
 }

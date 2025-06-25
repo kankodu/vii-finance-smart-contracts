@@ -251,12 +251,14 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
         wrapper.unwrap(
             borrower,
             tokenId,
-            wrapper.FULL_AMOUNT(),
             borrower,
+            wrapper.FULL_AMOUNT(),
             abi.encode(
                 (amount0Spent > 0 ? amount0Spent - 1 : 0), (amount1Spent > 0 ? amount1Spent - 1 : 0), block.timestamp
             )
         );
+
+        assertEq(wrapper.balanceOf(borrower, tokenId), 0);
 
         assertApproxEqAbs(IERC20(token0).balanceOf(borrower), amount0BalanceBefore + amount0Spent, 1);
         assertApproxEqAbs(IERC20(token1).balanceOf(borrower), amount1BalanceBefore + amount1Spent, 1);
@@ -366,7 +368,7 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
 
         transferAmount = bound(transferAmount, 1 + (totalValueBefore / ALLOWED_PRECISION_IN_TESTS), totalValueBefore); // make sure there is some minimum transfer amount
 
-        wrapper.transfer(liquidator, transferAmount);
+        assertTrue(wrapper.transfer(liquidator, transferAmount));
 
         uint256 erc6909TokensTransferred = wrapper.normalizedToFull(tokenId, transferAmount, totalValueBefore); // (transferAmount * wrapper.FULL_AMOUNT()) / totalValueBefore;
 
