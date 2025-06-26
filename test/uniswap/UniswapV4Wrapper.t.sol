@@ -162,7 +162,9 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         ERC721WrapperBase uniswapV4Wrapper = new MockUniswapV4Wrapper(
             address(evc), address(positionManager), address(oracle), unitOfAccount, poolKey, Addresses.WETH
         );
-        mintPositionHelper = new UniswapMintPositionHelper(address(evc), address(0), address(positionManager));
+        mintPositionHelper = new UniswapMintPositionHelper(
+            address(evc), Addresses.NON_FUNGIBLE_POSITION_MANAGER, address(positionManager)
+        );
 
         return uniswapV4Wrapper;
     }
@@ -233,6 +235,17 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
             owner,
             new bytes(0)
         );
+
+        // mintPositionHelper.mintPosition{value: 0}(
+        //     targetPoolKey,
+        //     tickLower,
+        //     tickUpper,
+        //     liquidityToAdd,
+        //     uint128(amount0Desired) * 2 + 1,
+        //     uint128(amount1Desired) * 2 + 1,
+        //     owner,
+        //     new bytes(0)
+        // );
 
         //ensure any unused tokens are returned to the borrower and position manager balance is zero
         // assertEq(targetPoolKey.currency0.balanceOf(address(positionManager)), 0);

@@ -12,22 +12,35 @@ import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPermit2} from "lib/v4-periphery/lib/permit2/src/interfaces/IPermit2.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
+import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
+import {IERC4626} from "lib/forge-std/src/interfaces/IERC4626.sol";
 
 contract UniswapMintPositionHelper is EVCUtil {
     using SafeERC20 for IERC20;
 
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
     IPositionManager public immutable positionManager;
+    address public immutable weth;
 
     constructor(address _evc, address _nonfungiblePositionManager, address _positionManager) EVCUtil(_evc) {
         nonfungiblePositionManager = INonfungiblePositionManager(_nonfungiblePositionManager);
         positionManager = IPositionManager(_positionManager);
+        weth = INonfungiblePositionManager(_nonfungiblePositionManager).WETH9();
+    }
+
+    function depositIntoVaultUsingETH(IERC4626 vault, uint256 assets, address receiver)
+        external
+        payable
+        returns (uint256 shares)
+    {
+        IWETH9(weth).deposit{value: msg.value}();
+        IWETH9(weth).approve(address(vault), assets);
+        shares = vault.deposit(assets, receiver);
     }
 
     function mintPosition(INonfungiblePositionManager.MintParams memory params)
         external
         payable
-        callThroughEVC
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
         if (params.amount0Desired != 0) {
@@ -66,12 +79,16 @@ contract UniswapMintPositionHelper is EVCUtil {
         uint128 amount1Max,
         address owner,
         bytes calldata hookData
-    ) external payable callThroughEVC returns (uint256 tokenId) {
+    ) external payable returns (uint256 tokenId) {
         tokenId = positionManager.nextTokenId();
 
         if (amount0Max != 0) {
             if (!poolKey.currency0.isAddressZero()) {
                 IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(_msgSender(), address(this), amount0Max);
+            } else if (msg.value == 0) {
+                //if currency0 is native eth and msg.value is 0 then we pull the WETH from the user and unwrap it
+                IERC20(weth).transferFrom(_msgSender(), address(this), amount0Max);
+                IWETH9(weth).withdraw(amount0Max);
             }
         }
         if (amount1Max != 0) {
@@ -101,6 +118,8 @@ contract UniswapMintPositionHelper is EVCUtil {
         params[3] = abi.encode(poolKey.currency0, _msgSender()); //if there is remaining amount of currency0, it will be swept to the user
         params[4] = abi.encode(poolKey.currency1, _msgSender());
 
-        positionManager.modifyLiquidities{value: msg.value}(abi.encode(actions, params), block.timestamp);
+        positionManager.modifyLiquidities{value: address(this).balance}(abi.encode(actions, params), block.timestamp);
     }
+
+    receive() external payable {}
 }
