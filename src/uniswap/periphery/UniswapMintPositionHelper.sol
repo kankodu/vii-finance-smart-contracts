@@ -20,12 +20,12 @@ contract UniswapMintPositionHelper is EVCUtil {
 
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
     IPositionManager public immutable positionManager;
-    address public immutable weth;
+    IWETH9 public immutable weth;
 
     constructor(address _evc, address _nonfungiblePositionManager, address _positionManager) EVCUtil(_evc) {
         nonfungiblePositionManager = INonfungiblePositionManager(_nonfungiblePositionManager);
         positionManager = IPositionManager(_positionManager);
-        weth = INonfungiblePositionManager(_nonfungiblePositionManager).WETH9();
+        weth = IWETH9(INonfungiblePositionManager(_nonfungiblePositionManager).WETH9());
     }
 
     function depositIntoVaultUsingETH(IERC4626 vault, uint256 assets, address receiver)
@@ -33,8 +33,8 @@ contract UniswapMintPositionHelper is EVCUtil {
         payable
         returns (uint256 shares)
     {
-        IWETH9(weth).deposit{value: msg.value}();
-        IWETH9(weth).approve(address(vault), assets);
+        weth.deposit{value: msg.value}();
+        weth.approve(address(vault), assets);
         shares = vault.deposit(assets, receiver);
     }
 
@@ -87,8 +87,8 @@ contract UniswapMintPositionHelper is EVCUtil {
                 IERC20(Currency.unwrap(poolKey.currency0)).safeTransferFrom(_msgSender(), address(this), amount0Max);
             } else if (msg.value == 0) {
                 //if currency0 is native eth and msg.value is 0 then we pull the WETH from the user and unwrap it
-                IERC20(weth).transferFrom(_msgSender(), address(this), amount0Max);
-                IWETH9(weth).withdraw(amount0Max);
+                weth.transferFrom(_msgSender(), address(this), amount0Max);
+                weth.withdraw(amount0Max);
             }
         }
         if (amount1Max != 0) {
