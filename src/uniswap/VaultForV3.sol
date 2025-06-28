@@ -20,7 +20,7 @@ import {SignedMath} from "lib/openzeppelin-contracts/contracts/utils/math/Signed
 import {SafeCast} from "lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
 
 contract Vault is ERC4626, EVCUtil {
-    uint256 public tokenId; //one at a time or will be hold multiple tokens?
+    uint256 public tokenId;
     UniswapV3Wrapper public immutable wrapper;
 
     int24 public tickLower;
@@ -29,7 +29,7 @@ contract Vault is ERC4626, EVCUtil {
     bool public immutable isToken0ToBeBorrowed;
 
     IUniswapV3Pool public immutable pool;
-    IEVault public immutable eVaultToBorrowFrom;
+    IEVault public eVaultToBorrowFrom;
 
     INonfungiblePositionManager public immutable nonFungiblePositionManager;
 
@@ -38,13 +38,11 @@ contract Vault is ERC4626, EVCUtil {
 
     IPriceOracle public immutable oracle;
 
-    //three type of rebalancing
-    //1. change the tick range
-    //2. increase or decrease the liquidity by borrowing more or to repay the borrowed assets
-    //3. change the vault where the borrowing happens from. (repay from one vault entirely and borrow from another vault )
+    address public immutable poolManager;
 
     constructor(
         UniswapV3Wrapper _wrapper,
+        address _poolManager,
         int24 _tickLower,
         int24 _tickUpper,
         IERC20 _asset,
@@ -56,6 +54,10 @@ contract Vault is ERC4626, EVCUtil {
         tickLower = _tickLower;
         tickUpper = _tickUpper;
         eVaultToBorrowFrom = _eVaultToBorrowFrom;
+
+        if (_eVaultToBorrowFrom.asset() != address(_asset)) {
+            revert("Asset does not match the vault's asset");
+        }
 
         oracle = IPriceOracle(_wrapper.oracle());
 
@@ -71,8 +73,11 @@ contract Vault is ERC4626, EVCUtil {
         pool = wrapper.pool();
 
         SafeERC20.forceApprove(IERC20(token0), address(_nonFungiblePositionManager), type(uint256).max);
-
         SafeERC20.forceApprove(IERC20(token1), address(_nonFungiblePositionManager), type(uint256).max);
+
+        poolManager = _poolManager;
+
+        evc.enableController(address(this), address(eVaultToBorrowFrom));
     }
 
     function getSlot0SqrtPriceX96() public view returns (uint160 sqrtRatioX96) {
@@ -102,6 +107,9 @@ contract Vault is ERC4626, EVCUtil {
             recipient: address(wrapper),
             deadline: block.timestamp
         });
+
+        //disable the outdated tokenId as collateral if it exists
+        if (tokenId != 0) wrapper.disableTokenIdAsCollateral(tokenId);
 
         (tokenId,,,) = nonFungiblePositionManager.mint(params);
 
@@ -203,9 +211,15 @@ contract Vault is ERC4626, EVCUtil {
 
         uint256 sharesToUnwrap = Math.mulDiv(shares, wrapper.balanceOf(address(this), tokenId), totalSupply());
 
-        //    function unwrap(address from, uint256 tokenId, address to, uint256 amount, bytes calldata extraData)
+        uint160 sqrtRatioX96 = getSlot0SqrtPriceX96();
+        (uint256 amount0, uint256 amount1) = wrapper.totalPositionValue(sqrtRatioX96, tokenId);
 
-        // we have estimate how much we will get back after unwrapping the sharesToUnwrap and that is how much we repay
+        //TODO: check if this will repay the right amount of assets. It might not
+        uint256 amountToRepay = isToken0ToBeBorrowed
+            ? Math.mulDiv(shares, amount0, totalSupply())
+            : Math.mulDiv(shares, amount1, totalSupply());
+
+        //make sure the error is not more than a 1 wei and there is enough balance of 1 wei extra if needed in this contract
 
         batchItems[0] = IEVC.BatchItem({
             targetContract: address(wrapper),
@@ -221,13 +235,11 @@ contract Vault is ERC4626, EVCUtil {
             )
         });
 
-        uint256 currentBorrowedAmount = Math.mulDiv(shares, eVaultToBorrowFrom.debtOf(address(this)), totalSupply());
-
         batchItems[1] = IEVC.BatchItem({
             targetContract: address(eVaultToBorrowFrom),
             onBehalfOfAccount: address(this),
             value: 0,
-            data: abi.encodeWithSelector(IEVault.repay.selector, currentBorrowedAmount, address(this))
+            data: abi.encodeWithSelector(IEVault.repay.selector, amountToRepay, address(this))
         });
 
         evc.batch(batchItems);
@@ -252,8 +264,9 @@ contract Vault is ERC4626, EVCUtil {
 
         uint256 amountBorrowed = eVaultToBorrowFrom.debtOf(address(this));
 
-        int256 effectiveAmountOfTokensBorrowed =
-            isToken0ToBeBorrowed ? int256(amount0) - int256(amountBorrowed) : int256(amount1) - int256(amountBorrowed);
+        int256 effectiveAmountOfTokensBorrowed = isToken0ToBeBorrowed
+            ? int256(amount0 + IERC20(token0).balanceOf(address(this))) - int256(amountBorrowed)
+            : int256(amount1 + IERC20(token1).balanceOf(address(this))) - int256(amountBorrowed);
 
         uint256 effectiveAmountOfTokensBorrowedInOtherToken = oracle.getQuote(
             SignedMath.abs(effectiveAmountOfTokensBorrowed),
@@ -261,12 +274,119 @@ contract Vault is ERC4626, EVCUtil {
             isToken0ToBeBorrowed ? token1 : token0
         );
 
+        uint256 otherTokenAmount = isToken0ToBeBorrowed ? amount1 : amount0;
+
+        otherTokenAmount +=
+            isToken0ToBeBorrowed ? IERC20(asset()).balanceOf(address(this)) : IERC20(asset()).balanceOf(address(this));
+
         return SafeCast.toUint256(
-            int256(amount0) + effectiveAmountOfTokensBorrowed < 0
+            int256(otherTokenAmount) < 0
                 ? -int256(effectiveAmountOfTokensBorrowedInOtherToken)
                 : int256(effectiveAmountOfTokensBorrowedInOtherToken)
         );
     }
+
+    //three type of rebalancing
+    //1. change the tick range
+    //2. increase or decrease the liquidity by borrowing more or to repay the borrowed assets
+    //3. change the vault where the borrowing happens from. (repay from one vault entirely and borrow from another vault )
+
+    function changeBorrowEVault(IEVault newEVault) external {
+        if (msg.sender != address(poolManager)) revert("Only pool manager can call this function");
+
+        //in a batch enableController for the new vault
+        //borrow the current borrowed amount from the new vault
+        //repay the current borrowed amount to the old vault
+        //disableController for the old vault
+
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](4);
+        batchItems[0] = IEVC.BatchItem({
+            targetContract: address(evc),
+            onBehalfOfAccount: address(0),
+            value: 0,
+            data: abi.encodeWithSelector(IEVC.enableController.selector, address(this), address(newEVault))
+        });
+
+        uint256 currentBorrowedAmount = eVaultToBorrowFrom.debtOf(address(this));
+
+        batchItems[1] = IEVC.BatchItem({
+            targetContract: address(newEVault),
+            onBehalfOfAccount: address(this),
+            value: 0,
+            data: abi.encodeWithSelector(IEVault.borrow.selector, currentBorrowedAmount, address(this))
+        });
+
+        batchItems[2] = IEVC.BatchItem({
+            targetContract: address(eVaultToBorrowFrom),
+            onBehalfOfAccount: address(this),
+            value: 0,
+            data: abi.encodeWithSelector(IEVault.repay.selector, currentBorrowedAmount, address(this))
+        });
+
+        batchItems[3] = IEVC.BatchItem({
+            targetContract: address(evc),
+            onBehalfOfAccount: address(0),
+            value: 0,
+            data: abi.encodeWithSelector(IEVC.disableController.selector, address(this), address(eVaultToBorrowFrom))
+        });
+
+        evc.batch(batchItems);
+
+        eVaultToBorrowFrom = newEVault;
+        isToken0ToBeBorrowed
+            ? SafeERC20.forceApprove(IERC20(address(newEVault)), address(token0), type(uint256).max)
+            : SafeERC20.forceApprove(IERC20(address(newEVault)), address(token1), type(uint256).max);
+    }
+
+    function changeTickRange(int24 newTickLower, int24 newTickUpper) external {
+        if (msg.sender != address(poolManager)) revert("Only pool manager can call this function");
+
+        uint160 sqrtRatioX96 = getSlot0SqrtPriceX96();
+        (uint256 amount0, uint256 amount1) = wrapper.totalPositionValue(sqrtRatioX96, tokenId);
+
+        tickLower = newTickLower;
+        tickUpper = newTickUpper;
+
+        //we will have to decrease the liquidity to it's entirely
+        //the we call mintPosition with the new tick range and the same amount of tokens
+
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](2);
+        batchItems[0] = IEVC.BatchItem({
+            targetContract: address(wrapper),
+            onBehalfOfAccount: address(this),
+            value: 0,
+            data: abi.encodeWithSelector(
+                bytes4(keccak256("unwrap(address,uint256,address,uint256,string)")),
+                address(this),
+                tokenId,
+                address(this),
+                wrapper.balanceOf(address(this), tokenId), //we want to unwrap the entire position
+                ""
+            )
+        });
+
+        batchItems[1] = IEVC.BatchItem({
+            targetContract: address(this),
+            onBehalfOfAccount: address(this),
+            value: 0,
+            data: abi.encodeWithSelector(this.mintPosition.selector, amount0, amount1)
+        });
+
+        evc.batch(batchItems);
+
+        //if there are any leftover assets and they are of the borrowed asset then we have to repay them
+        uint256 leftoverAssets =
+            isToken0ToBeBorrowed ? IERC20(token0).balanceOf(address(this)) : IERC20(token1).balanceOf(address(this));
+
+        eVaultToBorrowFrom.repay(
+            leftoverAssets < eVaultToBorrowFrom.debtOf(address(this)) ? leftoverAssets : type(uint256).max,
+            address(this)
+        );
+
+        //we always make sure there are no leftover borrowed assets in the vault
+    }
+
+    //two types of rebalancing. borrow some more assets and increase the liquidity by swapping it or repay some assets and decrease the liquidity
 
     function _msgSender() internal view virtual override(Context, EVCUtil) returns (address) {
         return EVCUtil._msgSender();
