@@ -15,6 +15,9 @@ import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
 import {INonfungiblePositionManager} from "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
+import {SignedMath} from "lib/openzeppelin-contracts/contracts/utils/math/SignedMath.sol";
+import {SafeCast} from "lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
 
 contract Vault is ERC4626, EVCUtil {
     uint256 public tokenId; //one at a time or will be hold multiple tokens?
@@ -32,6 +35,8 @@ contract Vault is ERC4626, EVCUtil {
 
     address public immutable token0;
     address public immutable token1;
+
+    IPriceOracle public immutable oracle;
 
     //three type of rebalancing
     //1. change the tick range
@@ -51,6 +56,8 @@ contract Vault is ERC4626, EVCUtil {
         tickLower = _tickLower;
         tickUpper = _tickUpper;
         eVaultToBorrowFrom = _eVaultToBorrowFrom;
+
+        oracle = IPriceOracle(_wrapper.oracle());
 
         INonfungiblePositionManager _nonFungiblePositionManager =
             INonfungiblePositionManager(address(wrapper.underlying()));
@@ -243,11 +250,22 @@ contract Vault is ERC4626, EVCUtil {
 
         (uint256 amount0, uint256 amount1) = wrapper.totalPositionValue(sqrtRatioX96, tokenId);
 
-        // uint256 totalValueInUnitOfAccount = wrapper.getQuote(amount0, token0) + wrapper.getQuote(amount1, token1);
+        uint256 amountBorrowed = eVaultToBorrowFrom.debtOf(address(this));
 
-        // uint256 currentBorrowedAmount = eVaultToBorrowFrom.debtOf(address(this));
+        int256 effectiveAmountOfTokensBorrowed =
+            isToken0ToBeBorrowed ? int256(amount0) - int256(amountBorrowed) : int256(amount1) - int256(amountBorrowed);
 
-        return amount0;
+        uint256 effectiveAmountOfTokensBorrowedInOtherToken = oracle.getQuote(
+            SignedMath.abs(effectiveAmountOfTokensBorrowed),
+            isToken0ToBeBorrowed ? token0 : token1,
+            isToken0ToBeBorrowed ? token1 : token0
+        );
+
+        return SafeCast.toUint256(
+            int256(amount0) + effectiveAmountOfTokensBorrowed < 0
+                ? -int256(effectiveAmountOfTokensBorrowedInOtherToken)
+                : int256(effectiveAmountOfTokensBorrowedInOtherToken)
+        );
     }
 
     function _msgSender() internal view virtual override(Context, EVCUtil) returns (address) {
