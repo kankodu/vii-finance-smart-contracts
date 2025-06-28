@@ -57,13 +57,13 @@ contract MockUniswapV3Wrapper is UniswapV3Wrapper {
         return _getFeeGrowthInside(tickLower, tickUpper);
     }
 
-    function totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
-        external
-        view
-        returns (uint256 amount0Total, uint256 amount1Total)
-    {
-        return _totalPositionValue(sqrtRatioX96, tokenId);
-    }
+    // function totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
+    //     external
+    //     view
+    //     returns (uint256 amount0Total, uint256 amount1Total)
+    // {
+    //     return _totalPositionValue(sqrtRatioX96, tokenId);
+    // }
 
     //All of tests uses the spot price from the pool instead of the oracle
     function getSqrtRatioX96(address, address, uint256, uint256) public view override returns (uint160 sqrtRatioX96) {

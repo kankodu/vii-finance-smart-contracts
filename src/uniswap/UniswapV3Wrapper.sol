@@ -103,7 +103,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
         uint160 sqrtRatioX96 = getSqrtRatioX96(token0, token1, unit0, unit1);
 
-        (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);
+        (uint256 amount0, uint256 amount1) = totalPositionValue(sqrtRatioX96, tokenId);
 
         uint256 amount0InUnitOfAccount = getQuote(amount0, token0);
         uint256 amount1InUnitOfAccount = getQuote(amount1, token1);
@@ -111,8 +111,8 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         return proportionalShare(tokenId, amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
     }
 
-    function _totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
-        internal
+    function totalPositionValue(uint160 sqrtRatioX96, uint256 tokenId)
+        public
         view
         returns (uint256 amount0Total, uint256 amount1Total)
     {
