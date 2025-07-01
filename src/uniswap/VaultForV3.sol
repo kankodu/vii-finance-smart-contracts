@@ -291,6 +291,7 @@ contract Vault is ERC4626, EVCUtil {
     //2. increase or decrease the liquidity by borrowing more or to repay the borrowed assets
     //3. change the vault where the borrowing happens from. (repay from one vault entirely and borrow from another vault )
 
+    //why would this be needed? If there is another market that accepts the same pool LP as collateral and has a better interest rate
     function changeBorrowEVault(IEVault newEVault) external {
         if (msg.sender != address(poolManager)) revert("Only pool manager can call this function");
 
