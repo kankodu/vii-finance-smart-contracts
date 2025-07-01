@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {FixedRateOracle} from "lib/euler-price-oracle/src/adapter/fixed/FixedRateOracle.sol";
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
 
 abstract contract BaseUniswapWrapperFactory {
     address public immutable evc;
@@ -39,6 +40,7 @@ abstract contract BaseUniswapWrapperFactory {
         return abi.encodePacked(bytecode, abi.encode(uniswapWrapper, unitOfAccount, unit));
     }
 
+    //use this if fixedRateOracle is not deployed yet
     function getFixedRateOracleAddress(address uniswapWrapper, address unitOfAccount) public view returns (address) {
         uint256 unit = 10 ** _getDecimals(unitOfAccount);
         bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapWrapper, unitOfAccount, unit);
@@ -46,10 +48,14 @@ abstract contract BaseUniswapWrapperFactory {
         return _computeCreate2Address(fixedRateOracleSalt, bytecode);
     }
 
+    //use this if fixedRateOracle is already deployed
+    function getFixedRateOracleAddress(address uniswapWrapper) public view returns (address) {
+        address unitOfAccount = IERC721WrapperBase(uniswapWrapper).unitOfAccount();
+        return getFixedRateOracleAddress(uniswapWrapper, unitOfAccount);
+    }
+
     function isFixedRateOracleValid(address fixedRateOracleToCheck) external view returns (bool) {
-        address expectedAddress = getFixedRateOracleAddress(
-            FixedRateOracle(fixedRateOracleToCheck).base(), FixedRateOracle(fixedRateOracleToCheck).quote()
-        );
+        address expectedAddress = getFixedRateOracleAddress(FixedRateOracle(fixedRateOracleToCheck).base());
         return expectedAddress == fixedRateOracleToCheck;
     }
 

@@ -2,8 +2,16 @@
 pragma solidity ^0.8.13;
 
 import {IPartialERC20} from "src/interfaces/IPartialERC20.sol";
+import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
+import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
 
 interface IERC721WrapperBase is IPartialERC20 {
+    function FULL_AMOUNT() external pure returns (uint256);
+    function MAX_TOKENIDS_ALLOWED() external pure returns (uint256);
+    function underlying() external view returns (IERC721);
+    function oracle() external view returns (IPriceOracle);
+    function unitOfAccount() external view returns (address);
+
     function wrap(uint256 tokenId, address to) external;
     function unwrap(address from, uint256 tokenId, address to) external;
     function unwrap(address from, uint256 tokenId, address to, uint256 amount, bytes calldata extraData) external;
