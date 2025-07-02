@@ -40,7 +40,6 @@ abstract contract BaseUniswapWrapperFactory {
         return abi.encodePacked(bytecode, abi.encode(uniswapWrapper, unitOfAccount, unit));
     }
 
-    //use this if fixedRateOracle is not deployed yet
     function getFixedRateOracleAddress(address uniswapWrapper, address unitOfAccount) public view returns (address) {
         uint256 unit = 10 ** _getDecimals(unitOfAccount);
         bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapWrapper, unitOfAccount, unit);
@@ -48,7 +47,6 @@ abstract contract BaseUniswapWrapperFactory {
         return _computeCreate2Address(fixedRateOracleSalt, bytecode);
     }
 
-    //use this if fixedRateOracle is already deployed
     function getFixedRateOracleAddress(address uniswapWrapper) public view returns (address) {
         address unitOfAccount = IERC721WrapperBase(uniswapWrapper).unitOfAccount();
         return getFixedRateOracleAddress(uniswapWrapper, unitOfAccount);

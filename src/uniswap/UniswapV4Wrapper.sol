@@ -33,6 +33,14 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     PoolKey public poolKey;
     mapping(uint256 tokenId => TokensOwed) public tokensOwed;
 
+    /// @notice Tracks the amount of fees owed to tokenId holders for both tokens.
+    /// @dev In Uniswap V3, when liquidity is modified, the pool does not immediately send fees accrued to the user.
+    ///      Instead, it increases the position's `tokensOwed` balance in an internal mapping, and the user must call `collect` to receive the tokens.
+    ///      In Uniswap V4, the PoolManager expects fees to be settled (sent to the user) immediately when liquidity is modified.
+    ///      However, since ERC6909 token IDs can have multiple holders, we only know about the share of the owner who is unwrapping their portion.
+    ///      Therefore, we must keep track of `feesOwed` here to ensure each holder receives the correct amount, rather than settling all fees at once.
+    ///      This state is maintained to accurately account for and distribute fees to each partial owner when they interact with their position.
+    ///      For this reason, this contract is expected to hold some currency0 and currency1 tokens till all of the tokenId holders have unwrapped.
     struct TokensOwed {
         uint256 fees0Owed;
         uint256 fees1Owed;

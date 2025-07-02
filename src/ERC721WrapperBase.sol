@@ -109,6 +109,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         }
     }
 
+    /// @dev https://github.com/euler-xyz/euler-price-oracle/#bidask-pricing for more information about the bid/ask pricing
     function getQuote(uint256 inAmount, address base) public view returns (uint256 outAmount) {
         if (evc.isControlCollateralInProgress()) {
             // mid-point price
