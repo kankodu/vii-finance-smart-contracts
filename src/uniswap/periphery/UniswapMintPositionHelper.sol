@@ -88,11 +88,15 @@ contract UniswapMintPositionHelper is EVCUtil {
             } else if (msg.value == 0) {
                 //if currency0 is native eth and msg.value is 0 then we pull the WETH from the user and unwrap it
                 weth.transferFrom(_msgSender(), address(this), amount0Max);
-                weth.withdraw(amount0Max);
             }
         }
         if (amount1Max != 0) {
             IERC20(Currency.unwrap(poolKey.currency1)).safeTransferFrom(_msgSender(), address(this), amount1Max);
+        }
+
+        uint256 currentWETHBalance = weth.balanceOf(address(this));
+        if (currentWETHBalance > 0) {
+            weth.withdraw(currentWETHBalance); //unwrap WETH to ETH if any is available
         }
 
         amount0Max = SafeCast.toUint128(poolKey.currency0.balanceOf(address(this)));
