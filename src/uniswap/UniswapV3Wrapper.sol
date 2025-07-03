@@ -48,7 +48,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
 
     /// @notice Validates that the position belongs to the pool that this wrapper is associated with
     /// @param tokenId The token ID to validate
-    function _validatePosition(uint256 tokenId) internal view override {
+    function validatePosition(uint256 tokenId) public view override {
         (,, address token0OfTokenId, address token1OfTokenId, uint24 feeOfTokenId,,,,,,,) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
         address poolOfTokenId = factory.getPool(token0OfTokenId, token1OfTokenId, feeOfTokenId);
@@ -104,12 +104,12 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
     ///      which implements ERC721Enumerable.
     /// @notice This function assumes that a user mints an NFT, sends it to this contract,
     ///         and then calls skim in the same tx. If any unwrap occurs in between, this logic may not work as expected.
-    function _getTokenIdToSkim() internal view override returns (uint256) {
+    function getTokenIdToSkim() public view override returns (uint256) {
         uint256 totalTokensOwnedByThis = IERC721Enumerable(address(underlying)).balanceOf(address(this));
         return IERC721Enumerable(address(underlying)).tokenOfOwnerByIndex(address(this), totalTokensOwnedByThis - 1);
     }
 
-    function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
+    function calculateValueOfTokenId(uint256 tokenId, uint256 amount) public view override returns (uint256) {
         uint160 sqrtRatioX96 = getSqrtRatioX96(token0, token1, unit0, unit1);
 
         (uint256 amount0, uint256 amount1) = _totalPositionValue(sqrtRatioX96, tokenId);

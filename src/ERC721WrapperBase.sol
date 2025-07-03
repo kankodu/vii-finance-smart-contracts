@@ -105,7 +105,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         for (uint256 i = 0; i < totalTokenIds; ++i) {
             uint256 tokenId = tokenIdOfOwnerByIndex(owner, i);
             if (totalSupply(tokenId) == 0) continue; //if the tokenId is not wrapped, we skip it
-            totalValue += _calculateValueOfTokenId(tokenId, balanceOf(owner, tokenId));
+            totalValue += calculateValueOfTokenId(tokenId, balanceOf(owner, tokenId));
         }
     }
 
@@ -144,17 +144,17 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         return _enabledTokenIds[owner].at(index);
     }
 
-    function _validatePosition(uint256 tokenId) internal view virtual;
+    function validatePosition(uint256 tokenId) public view virtual;
 
     /// @dev assumes that the tokenId is already owned by this address
     function _wrap(uint256 tokenId, address to) private {
-        _validatePosition(tokenId);
+        validatePosition(tokenId);
         _mint(to, tokenId, FULL_AMOUNT);
     }
 
     function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal virtual;
 
-    function _burnFrom(address from, uint256 tokenId, uint256 amount) internal virtual {
+    function _burnFrom(address from, uint256 tokenId, uint256 amount) internal {
         address sender = _msgSender();
         if (from != sender && !isOperator(from, sender)) {
             _spendAllowance(from, sender, tokenId, amount);
@@ -162,7 +162,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         _burn(from, tokenId, amount);
     }
 
-    function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view virtual returns (uint256);
+    function calculateValueOfTokenId(uint256 tokenId, uint256 amount) public view virtual returns (uint256);
 
     function _update(address from, address to, uint256 id, uint256 amount) internal virtual override {
         super._update(from, to, id, amount);
@@ -183,7 +183,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     }
 
     ///@dev specific to the implementation, it should return the tokenId that needs to be skimmed
-    function _getTokenIdToSkim() internal view virtual returns (uint256);
+    function getTokenIdToSkim() public view virtual returns (uint256);
 
     function _msgSender() internal view virtual override(Context, EVCUtil) returns (address) {
         return EVCUtil._msgSender();
@@ -210,7 +210,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     }
 
     function skim(address to) external {
-        uint256 tokenId = _getTokenIdToSkim();
+        uint256 tokenId = getTokenIdToSkim();
         //in case the tokenId is not owned by this contract already, it will revert
         if (underlying.ownerOf(tokenId) != address(this)) {
             revert TokenIdNotOwnedByThisContract();
@@ -223,7 +223,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     }
 
     function enableCurrentSkimCandidateAsCollateral() public {
-        uint256 tokenId = _getTokenIdToSkim();
+        uint256 tokenId = getTokenIdToSkim();
         enableTokenIdAsCollateral(tokenId);
     }
 }

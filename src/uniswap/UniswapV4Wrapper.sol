@@ -81,7 +81,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
     /// @notice Validates that the position belongs to the pool that this wrapper is associated with
     /// @param tokenId The token ID to validate
-    function _validatePosition(uint256 tokenId) internal view override {
+    function validatePosition(uint256 tokenId) public view override {
         (PoolKey memory poolKeyOfTokenId,) = IPositionManager(address(underlying)).getPoolAndPositionInfo(tokenId);
         PoolId poolIdOfTokenId = poolKeyOfTokenId.toId();
 
@@ -114,7 +114,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     /// @param tokenId The ID of the position token to evaluate
     /// @param amount The proportion of the position to value
     /// @return the proportional value of the specified position in unit of account
-    function _calculateValueOfTokenId(uint256 tokenId, uint256 amount) internal view override returns (uint256) {
+    function calculateValueOfTokenId(uint256 tokenId, uint256 amount) public view override returns (uint256) {
         PositionState memory positionState = _getPositionState(tokenId);
 
         (uint256 amount0, uint256 amount1) = _total(positionState, tokenId);
@@ -131,7 +131,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     /// @dev This is used so that user can directly send the freshly minted token to this wrapper and skim it
     /// @dev It helps with batching mint and wrap operations efficiently
     /// @return The latest token ID
-    function _getTokenIdToSkim() internal view override returns (uint256) {
+    function getTokenIdToSkim() public view override returns (uint256) {
         return IPositionManager(address(underlying)).nextTokenId() - 1;
     }
 
