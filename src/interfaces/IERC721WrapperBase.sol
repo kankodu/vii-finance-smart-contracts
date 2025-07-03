@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import {IPartialERC20} from "src/interfaces/IPartialERC20.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";

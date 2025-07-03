@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {UniswapV3WrapperFactory} from "src/uniswap/factory/UniswapV3WrapperFactory.sol";
 import {UniswapV3Wrapper} from "src/uniswap/UniswapV3Wrapper.sol";

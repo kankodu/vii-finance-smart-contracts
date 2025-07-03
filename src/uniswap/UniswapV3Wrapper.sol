@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.26;
 
 import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
 import {
