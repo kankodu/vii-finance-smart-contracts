@@ -46,14 +46,14 @@ contract UniswapV3WrapperFactoryTest is Test {
         assertEq(uniswapV3Wrapper, expectedWrapperAddress);
         assertEq(fixedRateOracle, expectedFixedRateOracleAddress);
 
-        assertTrue(factory.isUniswapV3WrapperValid(uniswapV3Wrapper));
+        assertTrue(factory.isUniswapV3WrapperValid(UniswapV3Wrapper(uniswapV3Wrapper)));
         assertTrue(factory.isFixedRateOracleValid(fixedRateOracle));
 
-        address uniswapV3WrapperDeployedWithoutFactory =
-            address(new UniswapV3Wrapper(evc, nonFungiblePositionManager, oracle, unitOfAccount, poolAddress));
+        UniswapV3Wrapper uniswapV3WrapperDeployedWithoutFactory =
+            new UniswapV3Wrapper(evc, nonFungiblePositionManager, oracle, unitOfAccount, poolAddress);
 
         address fixedRateOracleDeployedWithoutFactory =
-            address(new FixedRateOracle(uniswapV3WrapperDeployedWithoutFactory, unitOfAccount, 10 ** 18));
+            address(new FixedRateOracle(address(uniswapV3WrapperDeployedWithoutFactory), unitOfAccount, 10 ** 18));
 
         assertFalse(factory.isUniswapV3WrapperValid(uniswapV3WrapperDeployedWithoutFactory));
         assertFalse(factory.isFixedRateOracleValid(fixedRateOracleDeployedWithoutFactory));

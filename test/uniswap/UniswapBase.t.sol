@@ -18,6 +18,7 @@ import {ERC721WrapperBase} from "src/ERC721WrapperBase.sol";
 import {Fuzzers} from "@uniswap/v4-core/src/test/Fuzzers.sol";
 import {Pool} from "@uniswap/v4-core/src/libraries/Pool.sol";
 import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
+import {Addresses} from "test/helpers/Addresses.sol";
 
 contract UniswapBaseTest is Test, Fuzzers {
     uint256 constant INTERNAL_DEBT_PRECISION_SHIFT = 31;
@@ -57,15 +58,15 @@ contract UniswapBaseTest is Test, Fuzzers {
         string memory fork_url = vm.envString("MAINNET_RPC_URL");
         vm.createSelectFork(fork_url, 22473612);
 
-        evc = IEVC(0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383);
-        eVault = IEVault(0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9); //euler prime USDC
+        evc = IEVC(Addresses.EVC);
+        eVault = IEVault(Addresses.EULER_USDC_VAULT); //euler prime USDC
         asset = IERC20(eVault.asset());
 
         unitOfAccount = eVault.unitOfAccount();
         oracle = IPriceOracle(eVault.oracle());
 
-        address tokenA = eVault.asset(); //usdc
-        address tokenB = 0xdAC17F958D2ee523a2206206994597C13D831ec7; //USDT
+        address tokenA = eVault.asset(); //USDC
+        address tokenB = Addresses.USDT;
 
         (token0, token1) = (tokenA < tokenB) ? (tokenA, tokenB) : (tokenB, tokenA);
         wrapper = deployWrapper();

@@ -47,7 +47,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
 
     function enableTokenIdAsCollateral(uint256 tokenId) public returns (bool enabled) {
         address sender = _msgSender();
-        if (totalTokenIdsEnabledBy(sender) >= MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
+        if (totalTokenIdsEnabledBy(sender) > MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
         enabled = _enabledTokenIds[sender].add(tokenId);
         if (enabled) emit TokenIdEnabled(sender, tokenId, true);
     }
@@ -90,7 +90,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
 
         uint256 totalTokenIds = totalTokenIdsEnabledBy(sender);
 
-        for (uint256 i = 0; i < totalTokenIds; i++) {
+        for (uint256 i = 0; i < totalTokenIds; ++i) {
             uint256 tokenId = tokenIdOfOwnerByIndex(sender, i);
             _transfer(sender, to, tokenId, normalizedToFull(tokenId, amount, currentBalance)); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
         }
@@ -102,7 +102,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     function balanceOf(address owner) public view returns (uint256 totalValue) {
         uint256 totalTokenIds = totalTokenIdsEnabledBy(owner);
 
-        for (uint256 i = 0; i < totalTokenIds; i++) {
+        for (uint256 i = 0; i < totalTokenIds; ++i) {
             uint256 tokenId = tokenIdOfOwnerByIndex(owner, i);
             if (totalSupply(tokenId) == 0) continue; //if the tokenId is not wrapped, we skip it
             totalValue += _calculateValueOfTokenId(tokenId, balanceOf(owner, tokenId));

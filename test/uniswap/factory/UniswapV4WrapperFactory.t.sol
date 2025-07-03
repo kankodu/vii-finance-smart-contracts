@@ -56,16 +56,16 @@ contract UniswapV4WrapperFactoryTest is Test {
         assertEq(uniswapV4Wrapper, expectedWrapperAddress);
         assertEq(fixedRateOracle, expectedFixedRateOracleAddress);
 
-        assertTrue(factory.isUniswapV4WrapperValid(payable(uniswapV4Wrapper)));
+        assertTrue(factory.isUniswapV4WrapperValid(UniswapV4Wrapper(payable(uniswapV4Wrapper))));
         assertTrue(factory.isFixedRateOracleValid(fixedRateOracle));
 
-        address uniswapV4WrapperDeployedWithoutFactory =
-            address(new UniswapV4Wrapper(evc, positionManager, oracle, unitOfAccount, poolKey, weth));
+        UniswapV4Wrapper uniswapV4WrapperDeployedWithoutFactory =
+            new UniswapV4Wrapper(evc, positionManager, oracle, unitOfAccount, poolKey, weth);
 
         address fixedRateOracleDeployedWithoutFactory =
-            address(new FixedRateOracle(uniswapV4WrapperDeployedWithoutFactory, unitOfAccount, 10 ** 18));
+            address(new FixedRateOracle(address(uniswapV4WrapperDeployedWithoutFactory), unitOfAccount, 10 ** 18));
 
-        assertFalse(factory.isUniswapV4WrapperValid(payable(uniswapV4WrapperDeployedWithoutFactory)));
+        assertFalse(factory.isUniswapV4WrapperValid(uniswapV4WrapperDeployedWithoutFactory));
         assertFalse(factory.isFixedRateOracleValid(fixedRateOracleDeployedWithoutFactory));
 
         //trying to create the same wrapper again

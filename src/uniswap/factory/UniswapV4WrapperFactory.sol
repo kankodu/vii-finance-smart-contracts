@@ -32,9 +32,9 @@ contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
     {
         PoolId poolId = poolKey.toId();
         bytes32 wrapperSalt = _getWrapperSalt(oracle, unitOfAccount, poolId);
+
         uniswapV4Wrapper =
             address(new UniswapV4Wrapper{salt: wrapperSalt}(evc, positionManager, oracle, unitOfAccount, poolKey, weth));
-
         fixedRateOracle = _createFixedRateOracle(uniswapV4Wrapper, unitOfAccount);
 
         emit UniswapV4WrapperCreated(uniswapV4Wrapper, fixedRateOracle, poolId, oracle, unitOfAccount, poolKey);
@@ -49,8 +49,9 @@ contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
         view
         returns (bytes memory)
     {
-        bytes memory bytecode = type(UniswapV4Wrapper).creationCode;
-        return abi.encodePacked(bytecode, abi.encode(evc, positionManager, oracle, unitOfAccount, poolKey, weth));
+        return abi.encodePacked(
+            type(UniswapV4Wrapper).creationCode, abi.encode(evc, positionManager, oracle, unitOfAccount, poolKey, weth)
+        );
     }
 
     function getUniswapV4WrapperAddress(address oracle, address unitOfAccount, PoolKey memory poolKey)
@@ -59,23 +60,22 @@ contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
         returns (address)
     {
         PoolId poolId = poolKey.toId();
-        bytes32 wrapperSalt = _getWrapperSalt(oracle, unitOfAccount, poolId);
-        bytes memory bytecode = getUniswapV4WrapperBytecode(oracle, unitOfAccount, poolKey);
-        return _computeCreate2Address(wrapperSalt, bytecode);
+
+        return _computeCreate2Address(
+            _getWrapperSalt(oracle, unitOfAccount, poolId), getUniswapV4WrapperBytecode(oracle, unitOfAccount, poolKey)
+        );
     }
 
-    //check if uniswapV4Wrapper was created by this factory
-    function isUniswapV4WrapperValid(address payable uniswapV4WrapperToCheck) external view returns (bool) {
+    /// @notice Checks if the provided wrapper was created by this factory
+    function isUniswapV4WrapperValid(UniswapV4Wrapper uniswapV4WrapperToCheck) external view returns (bool) {
         (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
-            UniswapV4Wrapper(uniswapV4WrapperToCheck).poolKey();
+            uniswapV4WrapperToCheck.poolKey();
         PoolKey memory poolKey =
             PoolKey({currency0: currency0, currency1: currency1, fee: fee, tickSpacing: tickSpacing, hooks: hooks});
 
         address expectedAddress = getUniswapV4WrapperAddress(
-            address(UniswapV4Wrapper(uniswapV4WrapperToCheck).oracle()),
-            UniswapV4Wrapper(uniswapV4WrapperToCheck).unitOfAccount(),
-            poolKey
+            address(uniswapV4WrapperToCheck.oracle()), uniswapV4WrapperToCheck.unitOfAccount(), poolKey
         );
-        return expectedAddress == uniswapV4WrapperToCheck;
+        return expectedAddress == address(uniswapV4WrapperToCheck);
     }
 }

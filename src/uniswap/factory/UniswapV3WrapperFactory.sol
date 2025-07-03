@@ -24,10 +24,10 @@ contract UniswapV3WrapperFactory is BaseUniswapWrapperFactory {
         returns (address uniswapV3Wrapper, address fixedRateOracle)
     {
         bytes32 wrapperSalt = _getWrapperSalt(oracle, unitOfAccount, poolAddress);
+
         uniswapV3Wrapper = address(
             new UniswapV3Wrapper{salt: wrapperSalt}(evc, nonFungiblePositionManager, oracle, unitOfAccount, poolAddress)
         );
-
         fixedRateOracle = _createFixedRateOracle(uniswapV3Wrapper, unitOfAccount);
 
         emit UniswapV3WrapperCreated(uniswapV3Wrapper, fixedRateOracle, poolAddress, oracle, unitOfAccount);
@@ -46,9 +46,10 @@ contract UniswapV3WrapperFactory is BaseUniswapWrapperFactory {
         view
         returns (bytes memory)
     {
-        bytes memory bytecode = type(UniswapV3Wrapper).creationCode;
-        return
-            abi.encodePacked(bytecode, abi.encode(evc, nonFungiblePositionManager, oracle, unitOfAccount, poolAddress));
+        return abi.encodePacked(
+            type(UniswapV3Wrapper).creationCode,
+            abi.encode(evc, nonFungiblePositionManager, oracle, unitOfAccount, poolAddress)
+        );
     }
 
     function getUniswapV3WrapperAddress(address oracle, address unitOfAccount, address poolAddress)
@@ -56,18 +57,20 @@ contract UniswapV3WrapperFactory is BaseUniswapWrapperFactory {
         view
         returns (address)
     {
-        bytes32 wrapperSalt = _getWrapperSalt(oracle, unitOfAccount, poolAddress);
-        bytes memory bytecode = getUniswapV3WrapperBytecode(oracle, unitOfAccount, poolAddress);
-        return _computeCreate2Address(wrapperSalt, bytecode);
+        return _computeCreate2Address(
+            _getWrapperSalt(oracle, unitOfAccount, poolAddress),
+            getUniswapV3WrapperBytecode(oracle, unitOfAccount, poolAddress)
+        );
     }
 
     //check if uniswapV3Wrapper was created by this factory
-    function isUniswapV3WrapperValid(address uniswapV3WrapperToCheck) external view returns (bool) {
+    function isUniswapV3WrapperValid(UniswapV3Wrapper uniswapV3WrapperToCheck) external view returns (bool) {
         address expectedAddress = getUniswapV3WrapperAddress(
-            address(UniswapV3Wrapper(uniswapV3WrapperToCheck).oracle()),
-            UniswapV3Wrapper(uniswapV3WrapperToCheck).unitOfAccount(),
-            address(UniswapV3Wrapper(uniswapV3WrapperToCheck).pool())
+            address(uniswapV3WrapperToCheck.oracle()),
+            uniswapV3WrapperToCheck.unitOfAccount(),
+            address(uniswapV3WrapperToCheck.pool())
         );
-        return expectedAddress == uniswapV3WrapperToCheck;
+
+        return expectedAddress == address(uniswapV3WrapperToCheck);
     }
 }

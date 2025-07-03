@@ -22,7 +22,7 @@ import {ISwapRouter} from "lib/v3-periphery/contracts/interfaces/ISwapRouter.sol
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositionHelper.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {console} from "forge-std/console.sol";
+import {Addresses} from "test/helpers/Addresses.sol";
 
 contract MockUniswapV3Wrapper is UniswapV3Wrapper {
     constructor(address _evc, address _positionManager, address _oracle, address _unitOfAccount, address _pool)
@@ -88,8 +88,8 @@ contract UniswapV3WrapperTest is Test, UniswapBaseTest {
     int24 tickSpacing;
 
     function deployWrapper() internal override returns (ERC721WrapperBase) {
-        nonFungiblePositionManager = INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
-        swapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+        nonFungiblePositionManager = INonfungiblePositionManager(Addresses.NON_FUNGIBLE_POSITION_MANAGER);
+        swapRouter = ISwapRouter(Addresses.SWAP_ROUTER);
         fee = 100; // 0.01% fee
         factory = IUniswapV3Factory(nonFungiblePositionManager.factory());
         tickSpacing = factory.feeAmountTickSpacing(fee);
