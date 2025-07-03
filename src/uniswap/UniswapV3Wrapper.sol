@@ -11,6 +11,9 @@ import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.so
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 
+/// @title EVC aware collateral only vault for Uniswap V3 liquidity positions
+/// @author VII Finance
+/// @notice This contract allows EVK vaults to accept Uniswap V3 liquidity positions as collateral
 contract UniswapV3Wrapper is ERC721WrapperBase {
     IUniswapV3Pool public immutable pool;
     IUniswapV3Factory public immutable factory;

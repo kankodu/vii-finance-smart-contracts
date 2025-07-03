@@ -8,6 +8,8 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
+/// @title Factory for creating Uniswap V4 wrappers
+/// @author VII Finance
 contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
     address public immutable positionManager;
     address public immutable weth;

@@ -4,6 +4,8 @@ pragma solidity ^0.8.13;
 import {UniswapV3Wrapper} from "src/uniswap/UniswapV3Wrapper.sol";
 import {BaseUniswapWrapperFactory} from "src/uniswap/factory/BaseUniswapWrapperFactory.sol";
 
+/// @title Factory for creating Uniswap V3 wrappers
+/// @author VII Finance
 contract UniswapV3WrapperFactory is BaseUniswapWrapperFactory {
     address public immutable nonFungiblePositionManager;
 

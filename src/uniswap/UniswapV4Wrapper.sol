@@ -15,10 +15,11 @@ import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
 import {Currency} from "lib/v4-periphery/lib/v4-core/src/types/Currency.sol";
 
-/// @title UniswapV4Wrapper
-/// @notice ERC721 wrapper for Uniswap V4 positions
+/// @title EVC aware collateral only vault for Uniswap V3 liquidity positions
+/// @author VII Finance
+/// @notice This contract allows EVK vaults to accept Uniswap V4 liquidity positions as collateral
 /// @dev This wrapper is intended exclusively for vanilla Uniswap V4 pools.
-/// @dev It does not support pools with custom hooks that alter the default liquidity provision behavior.
+/// @dev Before using this for pools with custom hooks, ensure that the custom hook does not alter how a liquidity position is priced.
 contract UniswapV4Wrapper is ERC721WrapperBase {
     using SafeCast for uint256;
     using StateLibrary for IPoolManager;
