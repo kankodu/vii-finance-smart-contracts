@@ -176,18 +176,11 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     /// @notice Calculates principal amounts for the full position
-    /// @param positionState The position state
-    /// @return principalAmount0 Principal amount for token0
-    /// @return principalAmount1 Principal amount for token1
     function _principal(PositionState memory positionState) internal pure returns (uint256, uint256) {
         return _principal(positionState, positionState.liquidity);
     }
 
     /// @notice Calculates principal amounts for a specific liquidity amount
-    /// @param positionState The position state
-    /// @param liquidity The liquidity amount
-    /// @return principalAmount0 Principal amount for token0
-    /// @return principalAmount1 Principal amount for token1
     function _principal(PositionState memory positionState, uint128 liquidity)
         internal
         pure
@@ -201,11 +194,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         );
     }
 
-    /// @notice Decreases liquidity for a position
-    /// @param tokenId The position token ID
-    /// @param liquidity The amount of liquidity to remove
-    /// @param recipient The recipient of the withdrawn tokens
-    /// @param extraData Additional parameters (amount0Min, amount1Min, deadline)
     function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, address recipient, bytes calldata extraData)
         internal
     {
@@ -222,11 +210,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), deadline);
     }
 
-    /// @notice Calculates total amounts (principal + fees) for a position
-    /// @param positionState The position state
-    /// @param tokenId The position token ID
-    /// @return amount0Total Total amount for token0
-    /// @return amount1Total Total amount for token1
     function _total(PositionState memory positionState, uint256 tokenId)
         internal
         view
@@ -239,20 +222,11 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         amount1Total = principalAmount1 + pendingFees1 + tokensOwed[tokenId].fees1Owed;
     }
 
-    /// @notice Accumulates fees for a position
-    /// @param tokenId The position token ID
-    /// @param fees0 Fees for token0
-    /// @param fees1 Fees for token1
     function _accumulateFees(uint256 tokenId, uint256 fees0, uint256 fees1) internal {
         tokensOwed[tokenId].fees0Owed += fees0;
         tokensOwed[tokenId].fees1Owed += fees1;
     }
 
-    /// @notice Decodes extra data or returns defaults
-    /// @param extraData The encoded extra data
-    /// @return amount0Min Minimum amount0
-    /// @return amount1Min Minimum amount1
-    /// @return deadline Transaction deadline
     function _decodeExtraData(bytes calldata extraData)
         internal
         view
