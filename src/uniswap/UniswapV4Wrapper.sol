@@ -126,8 +126,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     /// @notice Gets the token ID that was just minted
-    /// @dev This is not ideal. It returns the last tokenId that was minted on the positionManager,
-    ///      not necessarily the last tokenId that was sent to this contract, but we have to work with this.
+    /// @dev It returns the last tokenId that was minted on the positionManager,
+    ///      not necessarily the last tokenId that was sent to this contract.
     /// @dev This is used so that user can directly send the freshly minted token to this wrapper and skim it
     /// @dev It helps with batching mint and wrap operations efficiently
     /// @return The latest token ID

@@ -46,14 +46,20 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         factory = IUniswapV3Factory(INonfungiblePositionManager(address(underlying)).factory());
     }
 
+    /// @notice Validates that the position belongs to the pool that this wrapper is associated with
+    /// @param tokenId The token ID to validate
     function _validatePosition(uint256 tokenId) internal view override {
         (,, address token0OfTokenId, address token1OfTokenId, uint24 feeOfTokenId,,,,,,,) =
             INonfungiblePositionManager(address(underlying)).positions(tokenId);
-        ///@dev external calls are not really required to get the pool address
         address poolOfTokenId = factory.getPool(token0OfTokenId, token1OfTokenId, feeOfTokenId);
         if (poolOfTokenId != address(pool)) revert InvalidPoolAddress();
     }
 
+    /// @notice Unwraps a position by removing proportional liquidity and send the resulting tokens and proportional fees to the recipient
+    /// @param to The recipient address
+    /// @param tokenId The position token ID
+    /// @param amount The proportion of the position to unwrap
+    /// @param extraData Additional parameters for the unwrap operation (uint256 amount0Min, uint256 amount1Min, uint256 deadline encoded)
     function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal override {
         (,,,,,,, uint128 liquidity,,,,) = INonfungiblePositionManager(address(underlying)).positions(tokenId);
 
@@ -94,7 +100,10 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         );
     }
 
-    ///@dev we know NonFungiblePositionManager is ERC721Enumerable, we return the last tokenId that is owned by this contract
+    /// @dev Returns the last tokenId owned by this contract from the NonFungiblePositionManager,
+    ///      which implements ERC721Enumerable.
+    /// @notice This function assumes that a user mints an NFT, sends it to this contract,
+    ///         and then calls skim in the same tx. If any unwrap occurs in between, this logic may not work as expected.
     function _getTokenIdToSkim() internal view override returns (uint256) {
         uint256 totalTokensOwnedByThis = IERC721Enumerable(address(underlying)).balanceOf(address(this));
         return IERC721Enumerable(address(underlying)).tokenOfOwnerByIndex(address(this), totalTokensOwnedByThis - 1);
