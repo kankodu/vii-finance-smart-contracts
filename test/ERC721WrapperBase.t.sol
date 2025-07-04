@@ -68,7 +68,7 @@ contract ERC721WrapperBaseTest is Test {
 
     function test_max_allowed_token_ids() public {
         //enabling more than MAX_TOKENIDS_ALLOWED should revert
-        for (uint256 i = 0; i <= wrapper.MAX_TOKENIDS_ALLOWED(); i++) {
+        for (uint256 i = 0; i < wrapper.MAX_TOKENIDS_ALLOWED(); i++) {
             uint256 tokenId = i;
             enableTokenIdAsCollateral(tokenId);
         }

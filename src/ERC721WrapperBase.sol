@@ -17,7 +17,7 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721WrapperBase {
     uint256 public constant FULL_AMOUNT = 1e36;
-    uint256 public constant MAX_TOKENIDS_ALLOWED = 4;
+    uint256 public constant MAX_TOKENIDS_ALLOWED = 7;
 
     IERC721 public immutable override underlying;
     IPriceOracle public immutable override oracle;
@@ -47,8 +47,8 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
 
     function enableTokenIdAsCollateral(uint256 tokenId) public returns (bool enabled) {
         address sender = _msgSender();
-        if (totalTokenIdsEnabledBy(sender) > MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
         enabled = _enabledTokenIds[sender].add(tokenId);
+        if (totalTokenIdsEnabledBy(sender) > MAX_TOKENIDS_ALLOWED) revert MaximumAllowedTokenIdsReached();
         if (enabled) emit TokenIdEnabled(sender, tokenId, true);
     }
 
