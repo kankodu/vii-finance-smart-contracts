@@ -10,7 +10,6 @@ import {EVCUtil} from "lib/ethereum-vault-connector/src/utils/EVCUtil.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {IPermit2} from "lib/v4-periphery/lib/permit2/src/interfaces/IPermit2.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
 import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
 import {IERC4626} from "lib/forge-std/src/interfaces/IERC4626.sol";

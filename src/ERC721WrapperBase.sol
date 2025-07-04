@@ -222,8 +222,8 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         _wrap(tokenId, to);
     }
 
-    function enableCurrentSkimCandidateAsCollateral() public {
+    function enableCurrentSkimCandidateAsCollateral() external returns (bool) {
         uint256 tokenId = getTokenIdToSkim();
-        enableTokenIdAsCollateral(tokenId);
+        return enableTokenIdAsCollateral(tokenId);
     }
 }

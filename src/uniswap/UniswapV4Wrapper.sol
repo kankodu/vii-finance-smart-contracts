@@ -6,7 +6,6 @@ import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager
 import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Position} from "@uniswap/v4-core/src/libraries/Position.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
@@ -57,7 +56,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
     error InvalidPoolId(PoolId actualPoolId, PoolId expectedPoolId);
     error InvalidWETHAddress();
-    error FeesMismatch(uint256 feesOwed0, uint256 feesOwed1, uint256 amount0, uint256 amount1);
 
     constructor(
         address _evc,

@@ -22,7 +22,7 @@ interface IERC721WrapperBase is IPartialERC20 {
     function tokenIdOfOwnerByIndex(address owner, uint256 index) external view returns (uint256);
     function getQuote(uint256 inAmount, address base) external view returns (uint256 outAmount);
     function skim(address to) external;
-    function enableCurrentSkimCandidateAsCollateral() external;
+    function enableCurrentSkimCandidateAsCollateral() external returns (bool);
     function validatePosition(uint256 tokenId) external view;
     function getTokenIdToSkim() external view returns (uint256);
     function calculateValueOfTokenId(uint256 tokenId, uint256 amount) external view returns (uint256);
