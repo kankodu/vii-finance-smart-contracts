@@ -17,12 +17,8 @@ abstract contract BaseUniswapWrapperFactory {
         return success && data.length == 32 ? abi.decode(data, (uint8)) : 18;
     }
 
-    function _getFixedRateOracleSalt(address uniswapWrapper, address unitOfAccount, uint256 unit)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(uniswapWrapper, unitOfAccount, unit));
+    function _getFixedRateOracleSalt(address uniswapWrapper, address unitOfAccount) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(uniswapWrapper, unitOfAccount));
     }
 
     function _computeCreate2Address(bytes32 salt, bytes memory bytecode) internal view returns (address) {
@@ -41,8 +37,7 @@ abstract contract BaseUniswapWrapperFactory {
     }
 
     function getFixedRateOracleAddress(address uniswapWrapper, address unitOfAccount) public view returns (address) {
-        uint256 unit = 10 ** _getDecimals(unitOfAccount);
-        bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapWrapper, unitOfAccount, unit);
+        bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapWrapper, unitOfAccount);
         bytes memory bytecode = getFixedRateOracleBytecode(uniswapWrapper, unitOfAccount);
         return _computeCreate2Address(fixedRateOracleSalt, bytecode);
     }
@@ -59,7 +54,7 @@ abstract contract BaseUniswapWrapperFactory {
 
     function _createFixedRateOracle(address uniswapWrapper, address unitOfAccount) internal returns (address) {
         uint256 unit = 10 ** _getDecimals(unitOfAccount);
-        bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapWrapper, unitOfAccount, unit);
+        bytes32 fixedRateOracleSalt = _getFixedRateOracleSalt(uniswapWrapper, unitOfAccount);
         return address(new FixedRateOracle{salt: fixedRateOracleSalt}(uniswapWrapper, unitOfAccount, unit));
     }
 }
