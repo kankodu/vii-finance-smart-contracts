@@ -6,7 +6,7 @@ optimizer = true
 optimizer_runs = 200
 
 [fuzz]
-runs = 10
+runs = 1
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}" 

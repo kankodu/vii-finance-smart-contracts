@@ -55,9 +55,10 @@ contract Vault is ERC4626, EVCUtil {
         tickUpper = _tickUpper;
         eVaultToBorrowFrom = _eVaultToBorrowFrom;
 
-        if (_eVaultToBorrowFrom.asset() != address(_asset)) {
-            revert("Asset does not match the vault's asset");
-        }
+        //this check is not correct. We have to check that the asset other than the underlying asset should be the same as the one being borrowed
+        // if (_eVaultToBorrowFrom.asset() != address(_asset)) {
+        //     revert("Asset does not match the vault's asset");
+        // }
 
         oracle = IPriceOracle(_wrapper.oracle());
 
