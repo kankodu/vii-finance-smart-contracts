@@ -6,6 +6,9 @@ import {BaseUniswapWrapperFactory} from "src/uniswap/factory/BaseUniswapWrapperF
 
 /// @title Factory for creating Uniswap V3 wrappers
 /// @author VII Finance
+/// @notice CAUTION: THIS CONTRACT IS FOR TESTING PURPOSES ONLY. DO NOT USE IN PRODUCTION.
+/// @notice The production deployment address will be announced and deployed later.
+/// @notice For more information, visit https://VII.finance
 contract UniswapV3WrapperFactory is BaseUniswapWrapperFactory {
     address public immutable nonFungiblePositionManager;
 

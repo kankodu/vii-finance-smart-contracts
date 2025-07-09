@@ -10,6 +10,9 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
 /// @title Factory for creating Uniswap V4 wrappers
 /// @author VII Finance
+/// @notice CAUTION: THIS CONTRACT IS FOR TESTING PURPOSES ONLY. DO NOT USE IN PRODUCTION.
+/// @notice The production deployment address will be announced and deployed later.
+/// @notice For more information, visit https://VII.finance
 contract UniswapV4WrapperFactory is BaseUniswapWrapperFactory {
     address public immutable positionManager;
     address public immutable weth;
