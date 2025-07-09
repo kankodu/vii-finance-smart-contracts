@@ -92,7 +92,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
 
         for (uint256 i = 0; i < totalTokenIds; ++i) {
             uint256 tokenId = tokenIdOfOwnerByIndex(sender, i);
-            _transfer(sender, to, tokenId, normalizedToFull(tokenId, amount, currentBalance)); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
+            _transfer(sender, to, tokenId, normalizedToFull(sender, tokenId, amount, currentBalance)); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
         }
         return true;
     }
@@ -173,8 +173,12 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         return Math.mulDiv(amount, part, totalSupply(tokenId));
     }
 
-    function normalizedToFull(uint256 tokenId, uint256 amount, uint256 currentBalance) public view returns (uint256) {
-        return Math.mulDiv(amount, totalSupply(tokenId), currentBalance);
+    function normalizedToFull(address user, uint256 tokenId, uint256 amount, uint256 currentBalance)
+        public
+        view
+        returns (uint256)
+    {
+        return Math.mulDiv(amount, balanceOf(user, tokenId), currentBalance);
     }
 
     function _getDecimals(address token) internal view returns (uint8) {

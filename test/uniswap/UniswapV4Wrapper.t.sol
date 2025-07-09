@@ -538,9 +538,9 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         vm.assume(totalValueBefore > 0);
         transferAmount = bound(transferAmount, 1 + (totalValueBefore / ALLOWED_PRECISION_IN_TESTS), totalValueBefore);
 
-        assertTrue(wrapper.transfer(liquidator, transferAmount));
+        uint256 erc6909TokensTransferred = wrapper.normalizedToFull(borrower, tokenId, transferAmount, totalValueBefore); // (transferAmount * wrapper.FULL_AMOUNT()) / totalValueBefore;
 
-        uint256 erc6909TokensTransferred = wrapper.normalizedToFull(tokenId, transferAmount, totalValueBefore); // (transferAmount * wrapper.FULL_AMOUNT()) / totalValueBefore;
+        assertTrue(wrapper.transfer(liquidator, transferAmount));
 
         assertEq(wrapper.balanceOf(liquidator, tokenId), erc6909TokensTransferred); //erc6909 check (rounding error)
         assertEq(wrapper.balanceOf(borrower, tokenId), wrapper.FULL_AMOUNT() - erc6909TokensTransferred);
