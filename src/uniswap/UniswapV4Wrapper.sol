@@ -105,8 +105,14 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         _decreaseLiquidity(tokenId, liquidityToRemove, ActionConstants.MSG_SENDER, extraData);
 
-        poolKey.currency0.transfer(to, amount0 + proportionalShare(tokenId, tokensOwed[tokenId].fees0Owed, amount));
-        poolKey.currency1.transfer(to, amount1 + proportionalShare(tokenId, tokensOwed[tokenId].fees1Owed, amount));
+        uint256 fees0ToSend = proportionalShare(tokenId, tokensOwed[tokenId].fees0Owed, amount);
+        uint256 fees1ToSend = proportionalShare(tokenId, tokensOwed[tokenId].fees1Owed, amount);
+
+        poolKey.currency0.transfer(to, amount0 + fees0ToSend);
+        poolKey.currency1.transfer(to, amount1 + fees1ToSend);
+
+        tokensOwed[tokenId].fees0Owed -= fees0ToSend;
+        tokensOwed[tokenId].fees1Owed -= fees1ToSend;
     }
 
     /// @notice Calculates the proportional value of a position in unit of account terms

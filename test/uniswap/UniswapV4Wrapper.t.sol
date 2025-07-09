@@ -33,6 +33,7 @@ import {Fuzzers} from "@uniswap/v4-core/src/test/Fuzzers.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
 import {TestRouter, SwapParams} from "lib/v4-periphery/test/shared/TestRouter.sol";
+import {PoolDonateTest} from "lib/v4-periphery/lib/v4-core/src/test/PoolDonateTest.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {UniswapPositionValueHelper} from "src/libraries/UniswapPositionValueHelper.sol";
 import {PositionInfo} from "lib/v4-periphery/src/libraries/PositionInfoLibrary.sol";
@@ -124,6 +125,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
     Currency currency1;
 
     TestRouter public router;
+    PoolDonateTest public poolDonateRouter;
 
     bool public constant TEST_NATIVE_ETH = true;
 
@@ -177,6 +179,7 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
         super.setUp();
 
         router = new TestRouter(poolManager);
+        poolDonateRouter = new PoolDonateTest(poolManager);
         startHoax(borrower);
         SafeERC20.forceApprove(IERC20(token0), address(router), type(uint256).max);
         SafeERC20.forceApprove(IERC20(token1), address(router), type(uint256).max);
@@ -445,6 +448,60 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         assertEq(actualFees0, expectedFees0);
         assertEq(actualFees1, expectedFees1);
+    }
+
+    function testFuzzFeeMathWithPartialUnwrap(
+        int256 liquidityDelta,
+        uint256 fees0ToDonate,
+        uint256 fees1ToDonate,
+        uint256 partialUnwrapAmount
+    ) public {
+        LiquidityParams memory params = LiquidityParams({
+            tickLower: TickMath.MIN_TICK + 1,
+            tickUpper: TickMath.MAX_TICK - 1,
+            liquidityDelta: liquidityDelta
+        });
+
+        (uint256 tokenIdMinted, uint256 amount0, uint256 amount1) = boundLiquidityParamsAndMint(params);
+
+        startHoax(borrower);
+        wrapper.underlying().approve(address(wrapper), tokenIdMinted);
+        wrapper.wrap(tokenIdMinted, borrower);
+        wrapper.enableTokenIdAsCollateral(tokenIdMinted);
+
+        uint256 totalBalanceBefore = wrapper.balanceOf(borrower);
+
+        fees0ToDonate = bound(fees0ToDonate, 1, amount0);
+        fees1ToDonate = bound(fees1ToDonate, 1, amount1);
+
+        deal(address(token0), address(borrower), fees0ToDonate);
+        deal(address(token1), address(borrower), fees1ToDonate);
+
+        SafeERC20.forceApprove(IERC20(token0), address(poolDonateRouter), type(uint256).max);
+        SafeERC20.forceApprove(IERC20(token1), address(poolDonateRouter), type(uint256).max);
+
+        //donate some fees to the position
+        poolDonateRouter.donate{value: poolKey.currency0.isAddressZero() ? fees0ToDonate : 0}(
+            poolKey, fees0ToDonate, fees1ToDonate, ""
+        );
+
+        (uint256 expectedFees0, uint256 expectedFees1) =
+            MockUniswapV4Wrapper(payable(address(wrapper))).pendingFees(tokenIdMinted);
+
+        uint256 expectedFeesValue = oracle.getQuote(expectedFees0, token0, unitOfAccount)
+            + oracle.getQuote(expectedFees1, token1, unitOfAccount);
+
+        assertApproxEqAbs(wrapper.balanceOf(borrower), totalBalanceBefore + expectedFeesValue, 1);
+
+        //now if a user does partial unwrap feesOwed should be deducted proportionally
+        partialUnwrapAmount = bound(partialUnwrapAmount, 1, wrapper.FULL_AMOUNT());
+        wrapper.unwrap(borrower, tokenIdMinted, borrower, partialUnwrapAmount, "");
+
+        (uint256 currentFees0Owed, uint256 currentFees1Owed) =
+            MockUniswapV4Wrapper(payable(address(wrapper))).tokensOwed(tokenIdMinted);
+
+        assertEq(currentFees0Owed, expectedFees0 - (expectedFees0 * partialUnwrapAmount) / wrapper.FULL_AMOUNT());
+        assertEq(currentFees1Owed, expectedFees1 - (expectedFees1 * partialUnwrapAmount) / wrapper.FULL_AMOUNT());
     }
 
     function testFuzzTotalPositionValueV4(LiquidityParams memory params) public {
