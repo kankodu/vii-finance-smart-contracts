@@ -104,7 +104,7 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         returns (uint256 amount0, uint256 amount1)
     {
         (uint256 amount0Min, uint256 amount1Min, uint256 deadline) =
-            extraData.length > 0 ? abi.decode(extraData, (uint256, uint256, uint256)) : (0, 0, block.timestamp);
+            extraData.length == 96 ? abi.decode(extraData, (uint256, uint256, uint256)) : (0, 0, block.timestamp);
 
         (amount0, amount1) = INonfungiblePositionManager(address(underlying)).decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({

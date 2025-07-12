@@ -256,7 +256,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         view
         returns (uint128 amount0Min, uint128 amount1Min, uint256 deadline)
     {
-        if (extraData.length > 0) {
+        if (extraData.length == 96) {
             (amount0Min, amount1Min, deadline) = abi.decode(extraData, (uint128, uint128, uint256));
         } else {
             (amount0Min, amount1Min, deadline) = (0, 0, block.timestamp);
