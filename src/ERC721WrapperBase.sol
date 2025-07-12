@@ -75,8 +75,9 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         external
         callThroughEVC
     {
-        _unwrap(to, tokenId, amount, extraData);
+        uint256 totalSupplyOfTokenId = totalSupply(tokenId);
         _burnFrom(from, tokenId, amount);
+        _unwrap(to, tokenId, totalSupplyOfTokenId, amount, extraData);
     }
 
     /// @notice For regular EVK vaults, it transfers the specified amount of vault shares from the sender to the receiver
@@ -152,7 +153,13 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         _mint(to, tokenId, FULL_AMOUNT);
     }
 
-    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal virtual;
+    function _unwrap(
+        address to,
+        uint256 tokenId,
+        uint256 totalSupplyOfTokenId,
+        uint256 amount,
+        bytes calldata extraData
+    ) internal virtual;
 
     function _settleFullUnwrap(uint256 tokenId, address to) internal virtual;
 
@@ -171,8 +178,12 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         if (from != address(0)) evc.requireAccountStatusCheck(from);
     }
 
-    function proportionalShare(uint256 tokenId, uint256 amount, uint256 part) public view returns (uint256) {
-        return Math.mulDiv(amount, part, totalSupply(tokenId));
+    function proportionalShare(uint256 amount, uint256 part, uint256 totalSupplyOfTokenId)
+        public
+        pure
+        returns (uint256)
+    {
+        return Math.mulDiv(amount, part, totalSupplyOfTokenId);
     }
 
     function normalizedToFull(address user, uint256 tokenId, uint256 amount, uint256 currentBalance)

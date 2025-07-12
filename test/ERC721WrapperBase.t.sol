@@ -15,7 +15,10 @@ contract ERC721WrapperBaseMock is ERC721WrapperBase {
     function getTokenIdToSkim() public view override returns (uint256) {}
 
     function validatePosition(uint256 tokenId) public view override {}
-    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal override {}
+    function _unwrap(address to, uint256 tokenId, uint256, uint256 amount, bytes calldata extraData)
+        internal
+        override
+    {}
 
     function _settleFullUnwrap(uint256 tokenId, address to) internal override {}
 
