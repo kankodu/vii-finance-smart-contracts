@@ -115,6 +115,18 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         tokensOwed[tokenId].fees1Owed -= fees1ToSend;
     }
 
+    function _settleFullUnwrap(uint256 tokenId, address to) internal override {
+        uint256 fees0ToSend = tokensOwed[tokenId].fees0Owed;
+        uint256 fees1ToSend = tokensOwed[tokenId].fees1Owed;
+        delete tokensOwed[tokenId];
+        if (fees1ToSend != 0) {
+            poolKey.currency1.transfer(to, fees1ToSend);
+        }
+        if (fees0ToSend != 0) {
+            poolKey.currency0.transfer(to, fees0ToSend);
+        }
+    }
+
     /// @notice Calculates the proportional value of a position in unit of account terms
     /// @param tokenId The ID of the position token to evaluate
     /// @param amount The proportion of the position to value

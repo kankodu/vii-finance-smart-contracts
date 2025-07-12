@@ -502,6 +502,13 @@ contract UniswapV4WrapperTest is Test, UniswapBaseTest {
 
         assertEq(currentFees0Owed, expectedFees0 - (expectedFees0 * partialUnwrapAmount) / wrapper.FULL_AMOUNT());
         assertEq(currentFees1Owed, expectedFees1 - (expectedFees1 * partialUnwrapAmount) / wrapper.FULL_AMOUNT());
+
+        //now if a user does full unwrap, feesOwed should be zero and the should have gone to the user itself
+        wrapper.unwrap(borrower, tokenIdMinted, borrower);
+        (currentFees0Owed, currentFees1Owed) = MockUniswapV4Wrapper(payable(address(wrapper))).tokensOwed(tokenIdMinted);
+        assertEq(currentFees0Owed, 0);
+        assertEq(currentFees1Owed, 0);
+        assertEq(wrapper.underlying().ownerOf(tokenIdMinted), borrower);
     }
 
     function testFuzzTotalPositionValueV4(LiquidityParams memory params) public {

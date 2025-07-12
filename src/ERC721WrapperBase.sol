@@ -69,6 +69,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     function unwrap(address from, uint256 tokenId, address to) external callThroughEVC {
         _burnFrom(from, tokenId, totalSupply(tokenId));
         underlying.transferFrom(address(this), to, tokenId);
+        _settleFullUnwrap(tokenId, to);
     }
 
     function unwrap(address from, uint256 tokenId, address to, uint256 amount, bytes calldata extraData)
@@ -153,6 +154,8 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     }
 
     function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal virtual;
+
+    function _settleFullUnwrap(uint256 tokenId, address to) internal virtual;
 
     function _burnFrom(address from, uint256 tokenId, uint256 amount) internal {
         address sender = _msgSender();

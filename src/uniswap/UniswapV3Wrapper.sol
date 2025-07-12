@@ -85,6 +85,8 @@ contract UniswapV3Wrapper is ERC721WrapperBase {
         );
     }
 
+    function _settleFullUnwrap(uint256 tokenId, address to) internal override {}
+
     function _decreaseLiquidity(uint256 tokenId, uint128 liquidity, bytes calldata extraData)
         internal
         returns (uint256 amount0, uint256 amount1)
