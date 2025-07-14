@@ -9,6 +9,11 @@ solc = "0.8.26"
 [fuzz]
 runs = 10
 
+[invariant]
+runs = 1000
+depth = 10
+fail_on_revert = true
+
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}" 
 base= "${BASE_RPC_URL}"
