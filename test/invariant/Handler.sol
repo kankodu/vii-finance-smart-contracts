@@ -41,14 +41,18 @@ import {UniswapV4WrapperFactory} from "src/uniswap/factory/UniswapV4WrapperFacto
 import {UniswapV4Wrapper} from "src/uniswap/UniswapV4Wrapper.sol";
 
 import {BaseSetup} from "test/invariant/BaseSetup.sol";
+import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
 
 struct TokenIdInfo {
-    uint256[] tokenIds;
+    bool isEnabled;
     bool isWrapped;
 }
 
 contract Handler is Test, BaseSetup {
-    mapping(address => TokenIdInfo) internal tokenIdInfo;
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    mapping(address => EnumerableSet.UintSet tokenIds) internal tokenIdsHeldByActor;
+    mapping(uint256 tokenId => TokenIdInfo) public tokenIdInfo;
 
     address[] public actors;
 
@@ -75,8 +79,8 @@ contract Handler is Test, BaseSetup {
         return actors.length;
     }
 
-    function getTokenIdInfo(address actor) public view returns (TokenIdInfo memory) {
-        return tokenIdInfo[actor];
+    function getTokenIdsHeldByActor(address actor) public view returns (uint256[] memory tokenId) {
+        return tokenIdsHeldByActor[actor].values();
     }
 
     function mintPositionAndWrap(uint256 actorIndexSeed, LiquidityParams memory params)
@@ -95,8 +99,8 @@ contract Handler is Test, BaseSetup {
         uniswapV4Wrapper.wrap(tokenIdMinted, receiver);
 
         //push the tokenId to the mapping
-        tokenIdInfo[receiver].tokenIds.push(tokenIdMinted);
-        tokenIdInfo[receiver].isWrapped = true;
+        tokenIdsHeldByActor[receiver].add(tokenIdMinted);
+        tokenIdInfo[tokenIdMinted].isWrapped = true;
 
         assertEq(
             uniswapV4Wrapper.balanceOf(receiver),
@@ -110,7 +114,86 @@ contract Handler is Test, BaseSetup {
         );
     }
 
-    // function testMintPositionAndWrap(uint256 actorIndexSeed, LiquidityParams memory params) public {
-    //     mintPositionAndWrap(actorIndexSeed, params);
-    // }
+    function transferWrappedTokenId(
+        uint256 actorIndexSeed,
+        uint256 toIndexSeed,
+        uint256 tokenIdIndexSeed,
+        uint256 transferAmount
+    ) public useActor(actorIndexSeed) {
+        uint256[] memory tokenIds = getTokenIdsHeldByActor(currentActor);
+        if (tokenIds.length == 0) {
+            return; //skip if current actor has no tokenIds
+        }
+        uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
+        address to = actors[bound(toIndexSeed, 0, actors.length - 1)];
+
+        if (to == currentActor) {
+            return; // skip if transferring to self
+        }
+
+        uint256 fromBalanceBeforeTransfer = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
+        uint256 toBalanceBeforeTransfer = uniswapV4Wrapper.balanceOf(to, tokenId);
+
+        transferAmount = bound(transferAmount, 1, fromBalanceBeforeTransfer);
+
+        uniswapV4Wrapper.transfer(to, tokenId, transferAmount);
+
+        assertEq(
+            uniswapV4Wrapper.balanceOf(currentActor, tokenId),
+            fromBalanceBeforeTransfer - transferAmount,
+            "UniswapV4Wrapper: transfer should decrease balance of sender"
+        );
+        assertEq(
+            uniswapV4Wrapper.balanceOf(to, tokenId),
+            toBalanceBeforeTransfer + transferAmount,
+            "UniswapV4Wrapper: transfer should increase balance of receiver"
+        );
+
+        if (transferAmount == fromBalanceBeforeTransfer) tokenIdsHeldByActor[currentActor].remove(tokenId);
+        tokenIdsHeldByActor[to].add(tokenId);
+    }
+
+    function partialUnwrap(uint256 actorIndexSeed, uint256 tokenIdIndexSeed, uint256 unwrapAmount)
+        public
+        useActor(actorIndexSeed)
+    {
+        uint256[] memory tokenIds = getTokenIdsHeldByActor(currentActor);
+        if (tokenIds.length == 0) {
+            return; //skip if current actor has no tokenIds
+        }
+        uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
+
+        uint256 currentBalance = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
+
+        unwrapAmount = bound(unwrapAmount, 1, currentBalance);
+
+        uniswapV4Wrapper.unwrap(currentActor, tokenId, currentActor, unwrapAmount, "");
+
+        //We need to independently find out the amount user spent on the tokenId
+        if (unwrapAmount == currentBalance) tokenIdsHeldByActor[currentActor].remove(tokenId);
+
+        assertEq(
+            uniswapV4Wrapper.balanceOf(currentActor, tokenId),
+            currentBalance - unwrapAmount,
+            "UniswapV4Wrapper: partial unwrap should decrease balance of sender"
+        );
+    }
+
+    function enableTokenIdAsCollateral(uint256 actorIndexSeed, uint256 tokenIdIndexSeed)
+        public
+        useActor(actorIndexSeed)
+    {
+        uint256[] memory tokenIds = getTokenIdsHeldByActor(currentActor);
+        if (tokenIds.length == 0) {
+            return; //skip if current actor has no tokenIds
+        }
+        uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
+
+        //if the tokenId is already enabled, we can skip
+        if (tokenIdInfo[tokenId].isEnabled) {
+            return;
+        }
+
+        uniswapV4Wrapper.enableTokenIdAsCollateral(tokenId);
+    }
 }

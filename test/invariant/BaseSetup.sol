@@ -116,10 +116,11 @@ contract BaseSetup is Test, Fuzzers {
         positionManager = new PositionManager(
             poolManager, IAllowanceTransfer(address(0)), 0, IPositionDescriptor(address(0)), IWETH9(address(weth))
         );
-        uniswapV4WrapperFactory =
-            new UniswapV4WrapperFactory(address(poolManager), address(positionManager), address(weth));
 
         evc = new EthereumVaultConnector();
+
+        uniswapV4WrapperFactory = new UniswapV4WrapperFactory(address(evc), address(positionManager), address(weth));
+
         genericFactory = new GenericFactory(genericFactoryAdmin);
 
         oracle = new MockPriceOracle();
@@ -193,6 +194,8 @@ contract BaseSetup is Test, Fuzzers {
         uniswapV4Wrapper = UniswapV4Wrapper(payable(uniswapV4WrapperAddress));
 
         oracle.setPrice(uniswapV4WrapperAddress, unitOfAccount, 1e18); // Set initial price to 1:1
+        oracle.setPrice(address(tokenA), unitOfAccount, 1e18); // Set initial price to 1:1
+        oracle.setPrice(address(tokenB), unitOfAccount, 1e18); // Set initial price to 1:1
 
         //accept the uniswapV4Wrapper a collateral in both eTokenAVault and eTokenBVault
         eTokenAVault.setLTV(uniswapV4WrapperAddress, 0.9e4, 0.9e4, 0); // 90% LTV

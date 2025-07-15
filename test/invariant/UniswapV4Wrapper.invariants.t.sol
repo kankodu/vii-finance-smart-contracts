@@ -11,8 +11,11 @@ contract UniswapV4WrapperInvariants is Test {
         handler = new Handler();
         handler.setUp();
 
-        bytes4[] memory selectors = new bytes4[](1);
+        bytes4[] memory selectors = new bytes4[](4);
         selectors[0] = Handler.mintPositionAndWrap.selector;
+        selectors[1] = Handler.transferWrappedTokenId.selector;
+        selectors[2] = Handler.partialUnwrap.selector;
+        selectors[3] = Handler.enableTokenIdAsCollateral.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
@@ -23,11 +26,12 @@ contract UniswapV4WrapperInvariants is Test {
         for (uint256 i = 0; i < handler.actorsLength(); i++) {
             address actor = handler.actors(i);
             //get all wrapped tokenIds
-            TokenIdInfo memory tokenIdInfo = handler.getTokenIdInfo(actor);
+            uint256[] memory tokenIds = handler.getTokenIdsHeldByActor(actor);
 
-            for (uint256 j = 0; j < tokenIdInfo.tokenIds.length; j++) {
-                uint256 tokenId = tokenIdInfo.tokenIds[j];
-                if (tokenIdInfo.isWrapped == false) {
+            for (uint256 j = 0; j < tokenIds.length; j++) {
+                uint256 tokenId = tokenIds[j];
+                (, bool isWrapped) = handler.tokenIdInfo(tokenId);
+                if (!isWrapped) {
                     continue;
                 }
                 assertLe(handler.uniswapV4Wrapper().totalSupply(tokenId), handler.uniswapV4Wrapper().FULL_AMOUNT());
