@@ -310,9 +310,11 @@ contract Handler is Test, BaseSetup {
         //we get all of the enabled tokenIds of the current actor
         uint256[] memory tokenIds = getTokenIdsHeldByActor(currentActor);
         uint256[] memory fromTokenIdBalancesBefore = new uint256[](tokenIds.length);
+        uint256[] memory toTokenIdBalancesBefore = new uint256[](tokenIds.length);
         uint256[] memory transferAmounts = new uint256[](tokenIds.length);
         for (uint256 i = 0; i < tokenIds.length; i++) {
             fromTokenIdBalancesBefore[i] = uniswapV4Wrapper.balanceOf(currentActor, tokenIds[i]);
+            toTokenIdBalancesBefore[i] = uniswapV4Wrapper.balanceOf(to, tokenIds[i]);
 
             if (tokenIdInfo[tokenIds[i]].isEnabled[currentActor] && currentActor != to) {
                 //if the tokenId is enabled, we should proportionally reduce the balance
@@ -332,6 +334,11 @@ contract Handler is Test, BaseSetup {
                 uniswapV4Wrapper.balanceOf(currentActor, tokenIds[i]),
                 fromTokenIdBalancesBefore[i] - transferAmounts[i],
                 "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally reduce tokenId balances"
+            );
+            assertEq(
+                uniswapV4Wrapper.balanceOf(to, tokenIds[i]),
+                toTokenIdBalancesBefore[i] + transferAmounts[i],
+                "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally increase tokenId balances"
             );
 
             if (transferAmounts[i] > 0 && currentActor != to) {
