@@ -42,6 +42,7 @@ import {UniswapV4Wrapper} from "src/uniswap/UniswapV4Wrapper.sol";
 
 import {BaseSetup} from "test/invariant/BaseSetup.sol";
 import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 struct TokenIdInfo {
     bool isWrapped;
@@ -149,17 +150,26 @@ contract Handler is Test, BaseSetup {
         uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
         address to = actors[bound(toIndexSeed, 0, actors.length - 1)];
 
-        if (to == currentActor) {
-            return; // skip if transferring to self
-        }
-
         uint256 fromBalanceBeforeTransfer = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
         uint256 toBalanceBeforeTransfer = uniswapV4Wrapper.balanceOf(to, tokenId);
 
-        transferAmount = bound(transferAmount, 1, fromBalanceBeforeTransfer);
+        if (fromBalanceBeforeTransfer == 0) {
+            return; //skip if transfer amount is 0
+        }
+
+        transferAmount = bound(transferAmount, 0, fromBalanceBeforeTransfer);
 
         uniswapV4Wrapper.transfer(to, tokenId, transferAmount);
 
+        //if transfer to self then we make sure the balance does not change
+        if (to == currentActor) {
+            assertEq(
+                uniswapV4Wrapper.balanceOf(currentActor, tokenId),
+                fromBalanceBeforeTransfer,
+                "UniswapV4Wrapper: transfer to self should not change balance"
+            );
+            return; //skip the rest
+        }
         assertEq(
             uniswapV4Wrapper.balanceOf(currentActor, tokenId),
             fromBalanceBeforeTransfer - transferAmount,
@@ -197,7 +207,11 @@ contract Handler is Test, BaseSetup {
 
         uint256 currentBalance = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
 
-        unwrapAmount = bound(unwrapAmount, 1, currentBalance);
+        if (currentBalance == 0) {
+            return; //skip if current actor has no balance
+        }
+
+        unwrapAmount = bound(unwrapAmount, 0, currentBalance);
 
         uniswapV4Wrapper.unwrap(currentActor, tokenId, currentActor, unwrapAmount, "");
 
@@ -279,12 +293,51 @@ contract Handler is Test, BaseSetup {
         );
     }
 
-    //we want to allow borrow
+    function transferWithoutActiveLiquidation(uint256 actorIndexSeed, uint256 toIndexSeed, uint256 transferAmount)
+        public
+        useActor(actorIndexSeed)
+    {
+        address to = actors[bound(toIndexSeed, 0, actors.length - 1)];
 
-    // function borrow(uint256 actorIndexSeed, bool tokenAToBeBorrowed, uint256 borrowAmount)
-    //     public
-    //     useActor(actorIndexSeed)
-    // {
-    //     uint256 currentBalance = uniswapV4Wrapper.balanceOf(currentActor);
-    // }
+        uint256 fromBalanceBeforeTransfer = uniswapV4Wrapper.balanceOf(currentActor);
+
+        if (fromBalanceBeforeTransfer == 0) {
+            return; //skip if current actor has no balance
+        }
+
+        transferAmount = bound(transferAmount, 0, fromBalanceBeforeTransfer);
+
+        //we get all of the enabled tokenIds of the current actor
+        uint256[] memory tokenIds = getTokenIdsHeldByActor(currentActor);
+        uint256[] memory fromTokenIdBalancesBefore = new uint256[](tokenIds.length);
+        uint256[] memory transferAmounts = new uint256[](tokenIds.length);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            fromTokenIdBalancesBefore[i] = uniswapV4Wrapper.balanceOf(currentActor, tokenIds[i]);
+
+            if (tokenIdInfo[tokenIds[i]].isEnabled[currentActor] && currentActor != to) {
+                //if the tokenId is enabled, we should proportionally reduce the balance
+                transferAmounts[i] = Math.mulDiv(
+                    fromTokenIdBalancesBefore[i], transferAmount, fromBalanceBeforeTransfer, Math.Rounding.Ceil
+                );
+            } else {
+                //if the tokenId is not enabled, we should not change the balance
+                transferAmounts[i] = 0;
+            }
+        }
+
+        uniswapV4Wrapper.transfer(to, transferAmount);
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            assertEq(
+                uniswapV4Wrapper.balanceOf(currentActor, tokenIds[i]),
+                fromTokenIdBalancesBefore[i] - transferAmounts[i],
+                "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally reduce tokenId balances"
+            );
+
+            if (transferAmounts[i] > 0 && currentActor != to) {
+                tokenIdsHeldByActor[to].add(tokenIds[i]);
+                tokenIdInfo[tokenIds[i]].holders.add(to);
+            }
+        }
+    }
 }
