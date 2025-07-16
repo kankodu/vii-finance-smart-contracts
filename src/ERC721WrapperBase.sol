@@ -13,7 +13,6 @@ import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeCast} from "lib/v4-periphery/lib/v4-core/src/libraries/SafeCast.sol";
-import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721WrapperBase {
     uint256 public constant FULL_AMOUNT = 1e36;
@@ -69,21 +68,22 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
     function unwrap(address from, uint256 tokenId, address to) external callThroughEVC {
         _burnFrom(from, tokenId, totalSupply(tokenId));
         underlying.transferFrom(address(this), to, tokenId);
+        _settleFullUnwrap(tokenId, to);
     }
 
     function unwrap(address from, uint256 tokenId, address to, uint256 amount, bytes calldata extraData)
         external
         callThroughEVC
     {
-        _unwrap(to, tokenId, amount, extraData);
+        uint256 totalSupplyOfTokenId = totalSupply(tokenId);
         _burnFrom(from, tokenId, amount);
+        _unwrap(to, tokenId, totalSupplyOfTokenId, amount, extraData);
     }
 
     /// @notice For regular EVK vaults, it transfers the specified amount of vault shares from the sender to the receiver
     /// @dev For ERC721WrapperBase, transfers a proportional amount of ERC6909 tokens (calculated as totalSupply(tokenId) * amount / balanceOf(sender)) for each enabled tokenId from the sender to the receiver.
     /// @dev no need to check if sender is being liquidated, sender can choose to do this at any time
-    /// @dev When calculating how many ERC6909 tokens to transfer, rounding is performed in favor of the sender (typically the violator).
-    /// @dev This means that the sender may end up with a slightly larger amount of ERC6909 tokens than expected, as the rounding is done in their favor.
+    /// @dev When calculating how many ERC6909 tokens to transfer, rounding is performed in favor of the receiver (typically the liquidator).
     function transfer(address to, uint256 amount) external callThroughEVC returns (bool) {
         address sender = _msgSender();
         uint256 currentBalance = balanceOf(sender);
@@ -92,7 +92,7 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
 
         for (uint256 i = 0; i < totalTokenIds; ++i) {
             uint256 tokenId = tokenIdOfOwnerByIndex(sender, i);
-            _transfer(sender, to, tokenId, normalizedToFull(tokenId, amount, currentBalance)); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
+            _transfer(sender, to, tokenId, normalizedToFull(sender, tokenId, amount, currentBalance)); //this concludes the liquidation. The liquidator can come back to do whatever they want with the ERC6909 tokens
         }
         return true;
     }
@@ -152,7 +152,15 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         _mint(to, tokenId, FULL_AMOUNT);
     }
 
-    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal virtual;
+    function _unwrap(
+        address to,
+        uint256 tokenId,
+        uint256 totalSupplyOfTokenId,
+        uint256 amount,
+        bytes calldata extraData
+    ) internal virtual;
+
+    function _settleFullUnwrap(uint256 tokenId, address to) internal virtual;
 
     function _burnFrom(address from, uint256 tokenId, uint256 amount) internal {
         address sender = _msgSender();
@@ -169,12 +177,20 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         if (from != address(0)) evc.requireAccountStatusCheck(from);
     }
 
-    function proportionalShare(uint256 tokenId, uint256 amount, uint256 part) public view returns (uint256) {
-        return Math.mulDiv(amount, part, totalSupply(tokenId));
+    function proportionalShare(uint256 amount, uint256 part, uint256 totalSupplyOfTokenId)
+        public
+        pure
+        returns (uint256)
+    {
+        return Math.mulDiv(amount, part, totalSupplyOfTokenId);
     }
 
-    function normalizedToFull(uint256 tokenId, uint256 amount, uint256 currentBalance) public view returns (uint256) {
-        return Math.mulDiv(amount, totalSupply(tokenId), currentBalance);
+    function normalizedToFull(address user, uint256 tokenId, uint256 amount, uint256 currentBalance)
+        public
+        view
+        returns (uint256)
+    {
+        return Math.mulDiv(amount, balanceOf(user, tokenId), currentBalance, Math.Rounding.Ceil);
     }
 
     function _getDecimals(address token) internal view returns (uint8) {

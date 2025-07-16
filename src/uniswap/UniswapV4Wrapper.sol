@@ -92,21 +92,46 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     /// @notice Unwraps a position by removing proportional liquidity and send the resulting tokens and proportional fees to the recipient
     /// @param to The recipient address
     /// @param tokenId The position token ID
+    /// @param totalSupplyOfTokenId The total supply of the token ID
     /// @param amount The proportion of the position to unwrap
     /// @param extraData Additional parameters for the unwrap operation (uint128 amount0Min, uint128 amount1Min, uint256 deadline encoded)
-    function _unwrap(address to, uint256 tokenId, uint256 amount, bytes calldata extraData) internal override {
+    function _unwrap(
+        address to,
+        uint256 tokenId,
+        uint256 totalSupplyOfTokenId,
+        uint256 amount,
+        bytes calldata extraData
+    ) internal override {
         PositionState memory positionState = _getPositionState(tokenId);
 
         (uint256 pendingFees0, uint256 pendingFees1) = _pendingFees(positionState);
         _accumulateFees(tokenId, pendingFees0, pendingFees1);
 
-        uint128 liquidityToRemove = proportionalShare(tokenId, positionState.liquidity, amount).toUint128();
+        uint128 liquidityToRemove = proportionalShare(positionState.liquidity, amount, totalSupplyOfTokenId).toUint128();
         (uint256 amount0, uint256 amount1) = _principal(positionState, liquidityToRemove);
 
         _decreaseLiquidity(tokenId, liquidityToRemove, ActionConstants.MSG_SENDER, extraData);
 
-        poolKey.currency0.transfer(to, amount0 + proportionalShare(tokenId, tokensOwed[tokenId].fees0Owed, amount));
-        poolKey.currency1.transfer(to, amount1 + proportionalShare(tokenId, tokensOwed[tokenId].fees1Owed, amount));
+        uint256 fees0ToSend = proportionalShare(tokensOwed[tokenId].fees0Owed, amount, totalSupplyOfTokenId);
+        uint256 fees1ToSend = proportionalShare(tokensOwed[tokenId].fees1Owed, amount, totalSupplyOfTokenId);
+
+        tokensOwed[tokenId].fees0Owed -= fees0ToSend;
+        tokensOwed[tokenId].fees1Owed -= fees1ToSend;
+
+        poolKey.currency1.transfer(to, amount1 + fees1ToSend);
+        poolKey.currency0.transfer(to, amount0 + fees0ToSend);
+    }
+
+    function _settleFullUnwrap(uint256 tokenId, address to) internal override {
+        uint256 fees0ToSend = tokensOwed[tokenId].fees0Owed;
+        uint256 fees1ToSend = tokensOwed[tokenId].fees1Owed;
+        delete tokensOwed[tokenId];
+        if (fees1ToSend != 0) {
+            poolKey.currency1.transfer(to, fees1ToSend);
+        }
+        if (fees0ToSend != 0) {
+            poolKey.currency0.transfer(to, fees0ToSend);
+        }
     }
 
     /// @notice Calculates the proportional value of a position in unit of account terms
@@ -121,7 +146,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(poolKey.currency0));
         uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(poolKey.currency1));
 
-        return proportionalShare(tokenId, amount0InUnitOfAccount + amount1InUnitOfAccount, amount);
+        return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount, totalSupply(tokenId));
     }
 
     /// @notice Gets the token ID that was just minted
@@ -231,7 +256,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         view
         returns (uint128 amount0Min, uint128 amount1Min, uint256 deadline)
     {
-        if (extraData.length > 0) {
+        if (extraData.length == 96) {
             (amount0Min, amount1Min, deadline) = abi.decode(extraData, (uint128, uint128, uint256));
         } else {
             (amount0Min, amount1Min, deadline) = (0, 0, block.timestamp);
