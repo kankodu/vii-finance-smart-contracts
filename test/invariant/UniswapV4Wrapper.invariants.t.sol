@@ -11,11 +11,12 @@ contract UniswapV4WrapperInvariants is Test {
         handler = new Handler();
         handler.setUp();
 
-        bytes4[] memory selectors = new bytes4[](4);
+        bytes4[] memory selectors = new bytes4[](5);
         selectors[0] = Handler.mintPositionAndWrap.selector;
         selectors[1] = Handler.transferWrappedTokenId.selector;
         selectors[2] = Handler.partialUnwrap.selector;
         selectors[3] = Handler.enableTokenIdAsCollateral.selector;
+        selectors[4] = Handler.disableTokenIdAsCollateral.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
@@ -30,12 +31,27 @@ contract UniswapV4WrapperInvariants is Test {
 
             for (uint256 j = 0; j < tokenIds.length; j++) {
                 uint256 tokenId = tokenIds[j];
-                (, bool isWrapped) = handler.tokenIdInfo(tokenId);
+                bool isWrapped = handler.isTokenIdWrapped(tokenId);
                 if (!isWrapped) {
                     continue;
                 }
                 assertLe(handler.uniswapV4Wrapper().totalSupply(tokenId), handler.uniswapV4Wrapper().FULL_AMOUNT());
             }
+        }
+    }
+
+    function invariant_total6909SupplyEqualsSumOfBalances() public view {
+        uint256[] memory allTokenIds = handler.getAllTokenIds();
+        for (uint256 i = 0; i < allTokenIds.length; i++) {
+            uint256 tokenId = allTokenIds[i];
+            address[] memory users = handler.getUsersHoldingWrappedTokenId(tokenId);
+            uint256 totalBalance;
+            for (uint256 j = 0; j < users.length; j++) {
+                address user = users[j];
+                totalBalance += handler.uniswapV4Wrapper().balanceOf(user, tokenId);
+            }
+            uint256 total6909Supply = handler.uniswapV4Wrapper().totalSupply(tokenId);
+            assertEq(totalBalance, total6909Supply, "Total 6909 supply does not equal sum of balances");
         }
     }
 }

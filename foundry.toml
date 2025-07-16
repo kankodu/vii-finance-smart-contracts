@@ -10,8 +10,8 @@ solc = "0.8.26"
 runs = 10
 
 [invariant]
-runs = 1000
-depth = 10
+runs = 10_000
+depth = 50
 fail_on_revert = true
 
 [rpc_endpoints]

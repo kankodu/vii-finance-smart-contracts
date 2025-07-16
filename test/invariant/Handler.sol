@@ -44,15 +44,19 @@ import {BaseSetup} from "test/invariant/BaseSetup.sol";
 import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
 
 struct TokenIdInfo {
-    bool isEnabled;
     bool isWrapped;
+    mapping(address user => bool isEnabled) isEnabled;
+    EnumerableSet.AddressSet holders;
 }
 
 contract Handler is Test, BaseSetup {
     using EnumerableSet for EnumerableSet.UintSet;
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    EnumerableSet.UintSet internal allTokenIds;
 
     mapping(address => EnumerableSet.UintSet tokenIds) internal tokenIdsHeldByActor;
-    mapping(uint256 tokenId => TokenIdInfo) public tokenIdInfo;
+    mapping(uint256 tokenId => TokenIdInfo) internal tokenIdInfo;
 
     address[] public actors;
 
@@ -83,6 +87,22 @@ contract Handler is Test, BaseSetup {
         return tokenIdsHeldByActor[actor].values();
     }
 
+    function isTokenIdWrapped(uint256 tokenId) public view returns (bool isWrapped) {
+        return tokenIdInfo[tokenId].isWrapped;
+    }
+
+    function getUsersHoldingWrappedTokenId(uint256 tokenId) public view returns (address[] memory users) {
+        return tokenIdInfo[tokenId].holders.values();
+    }
+
+    function getAllTokenIdsLength() public view returns (uint256) {
+        return allTokenIds.length();
+    }
+
+    function getAllTokenIds() public view returns (uint256[] memory) {
+        return allTokenIds.values();
+    }
+
     function mintPositionAndWrap(uint256 actorIndexSeed, LiquidityParams memory params)
         public
         useActor(actorIndexSeed)
@@ -101,6 +121,8 @@ contract Handler is Test, BaseSetup {
         //push the tokenId to the mapping
         tokenIdsHeldByActor[receiver].add(tokenIdMinted);
         tokenIdInfo[tokenIdMinted].isWrapped = true;
+        allTokenIds.add(tokenIdMinted);
+        tokenIdInfo[tokenIdMinted].holders.add(receiver);
 
         assertEq(
             uniswapV4Wrapper.balanceOf(receiver),
@@ -149,8 +171,18 @@ contract Handler is Test, BaseSetup {
             "UniswapV4Wrapper: transfer should increase balance of receiver"
         );
 
-        if (transferAmount == fromBalanceBeforeTransfer) tokenIdsHeldByActor[currentActor].remove(tokenId);
+        if (transferAmount == fromBalanceBeforeTransfer) {
+            tokenIdsHeldByActor[currentActor].remove(tokenId);
+            tokenIdInfo[tokenId].holders.remove(currentActor);
+        } else {
+            //if the transfer amount is less than the full balance, we should not remove the tokenId from the mapping
+            //but we should still add the receiver to the holders
+            if (!tokenIdInfo[tokenId].holders.contains(to)) {
+                tokenIdInfo[tokenId].holders.add(to);
+            }
+        }
         tokenIdsHeldByActor[to].add(tokenId);
+        tokenIdInfo[tokenId].holders.add(to);
     }
 
     function partialUnwrap(uint256 actorIndexSeed, uint256 tokenIdIndexSeed, uint256 unwrapAmount)
@@ -170,7 +202,10 @@ contract Handler is Test, BaseSetup {
         uniswapV4Wrapper.unwrap(currentActor, tokenId, currentActor, unwrapAmount, "");
 
         //We need to independently find out the amount user spent on the tokenId
-        if (unwrapAmount == currentBalance) tokenIdsHeldByActor[currentActor].remove(tokenId);
+        if (unwrapAmount == currentBalance) {
+            tokenIdsHeldByActor[currentActor].remove(tokenId);
+            tokenIdInfo[tokenId].holders.remove(currentActor);
+        }
 
         assertEq(
             uniswapV4Wrapper.balanceOf(currentActor, tokenId),
@@ -190,10 +225,66 @@ contract Handler is Test, BaseSetup {
         uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
 
         //if the tokenId is already enabled, we can skip
-        if (tokenIdInfo[tokenId].isEnabled) {
+        if (tokenIdInfo[tokenId].isEnabled[currentActor]) {
             return;
         }
 
+        tokenIdInfo[tokenId].isEnabled[currentActor] = true;
+
+        uint256 enabledTokenIdsLengthBefore = uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor);
+
+        if (enabledTokenIdsLengthBefore == 7) vm.expectRevert(); //we know it is not allowed to enable more than 7 tokenIds
+
         uniswapV4Wrapper.enableTokenIdAsCollateral(tokenId);
+
+        if (enabledTokenIdsLengthBefore == 7) return; //if it reverted, we can skip the assertions
+
+        assertEq(
+            uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor),
+            enabledTokenIdsLengthBefore + 1,
+            "UniswapV4Wrapper: enableTokenIdAsCollateral should increase total enabled tokenIds"
+        );
+        assertEq(
+            uniswapV4Wrapper.tokenIdOfOwnerByIndex(currentActor, enabledTokenIdsLengthBefore),
+            tokenId,
+            "UniswapV4Wrapper: tokenIdOfOwnerByIndex should return the correct tokenId"
+        );
     }
+
+    function disableTokenIdAsCollateral(uint256 actorIndexSeed, uint256 tokenIdIndexSeed)
+        public
+        useActor(actorIndexSeed)
+    {
+        uint256[] memory tokenIds = getTokenIdsHeldByActor(currentActor);
+        if (tokenIds.length == 0) {
+            return; //skip if current actor has no tokenIds
+        }
+        uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
+
+        //if the tokenId is not enabled, we can skip
+        if (!tokenIdInfo[tokenId].isEnabled[currentActor]) {
+            return;
+        }
+
+        tokenIdInfo[tokenId].isEnabled[currentActor] = false;
+
+        uint256 enabledTokenIdsLengthBefore = uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor);
+
+        uniswapV4Wrapper.disableTokenIdAsCollateral(tokenId);
+
+        assertEq(
+            uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor),
+            enabledTokenIdsLengthBefore - 1,
+            "UniswapV4Wrapper: disableTokenIdAsCollateral should decrease total enabled tokenIds"
+        );
+    }
+
+    //we want to allow borrow
+
+    // function borrow(uint256 actorIndexSeed, bool tokenAToBeBorrowed, uint256 borrowAmount)
+    //     public
+    //     useActor(actorIndexSeed)
+    // {
+    //     uint256 currentBalance = uniswapV4Wrapper.balanceOf(currentActor);
+    // }
 }
