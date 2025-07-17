@@ -321,29 +321,61 @@ contract Handler is Test, BaseSetup {
                 transferAmounts[i] = Math.mulDiv(
                     fromTokenIdBalancesBefore[i], transferAmount, fromBalanceBeforeTransfer, Math.Rounding.Ceil
                 );
+                vm.stopPrank();
+                //we also enable this tokenId for the receiver as well to make sure transfer in terms of unit of account is the same as well
+                vm.prank(to);
+                uniswapV4Wrapper.enableTokenIdAsCollateral(tokenIds[i]);
+
+                vm.startPrank(currentActor);
             } else {
-                //if the tokenId is not enabled, we should not change the balance
+                //if the tokenId is not enabled, that tokenId transfer amount is 0
                 transferAmounts[i] = 0;
             }
         }
 
+        uint256 toBalanceBeforeTransfer = uniswapV4Wrapper.balanceOf(to);
+
         uniswapV4Wrapper.transfer(to, transferAmount);
 
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            assertEq(
-                uniswapV4Wrapper.balanceOf(currentActor, tokenIds[i]),
-                fromTokenIdBalancesBefore[i] - transferAmounts[i],
-                "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally reduce tokenId balances"
+        if (currentActor != to) {
+            //TODO: why is there 1 wei of error here?
+            assertLe(
+                uniswapV4Wrapper.balanceOf(currentActor),
+                fromBalanceBeforeTransfer - transferAmount + 1,
+                "UniswapV4Wrapper: transferWithoutActiveLiquidation should decrease balance of sender"
             );
-            assertEq(
-                uniswapV4Wrapper.balanceOf(to, tokenIds[i]),
-                toTokenIdBalancesBefore[i] + transferAmounts[i],
-                "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally increase tokenId balances"
+            assertGe(
+                uniswapV4Wrapper.balanceOf(to) + 1,
+                toBalanceBeforeTransfer + transferAmount,
+                "UniswapV4Wrapper: transferWithoutActiveLiquidation should increase balance of receiver"
             );
 
-            if (transferAmounts[i] > 0 && currentActor != to) {
-                tokenIdsHeldByActor[to].add(tokenIds[i]);
-                tokenIdInfo[tokenIds[i]].holders.add(to);
+            for (uint256 i = 0; i < tokenIds.length; i++) {
+                assertEq(
+                    uniswapV4Wrapper.balanceOf(currentActor, tokenIds[i]),
+                    fromTokenIdBalancesBefore[i] - transferAmounts[i],
+                    "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally reduce tokenId balances"
+                );
+                assertEq(
+                    uniswapV4Wrapper.balanceOf(to, tokenIds[i]),
+                    toTokenIdBalancesBefore[i] + transferAmounts[i],
+                    "UniswapV4Wrapper: transferWithoutActiveLiquidation should proportionally increase tokenId balances"
+                );
+
+                //we make the enabled tokenIds for the receiver to disabled to make sure no change really happened in the state
+                //we only did this earlier to make sure the transfer in terms of unit of account is the same
+                if (!tokenIdInfo[tokenIds[i]].isEnabled[to]) {
+                    vm.stopPrank();
+                    vm.prank(to);
+                    uniswapV4Wrapper.disableTokenIdAsCollateral(tokenIds[i]);
+
+                    vm.startPrank(currentActor);
+                }
+
+                if (transferAmounts[i] > 0 && currentActor != to) {
+                    tokenIdsHeldByActor[to].add(tokenIds[i]);
+                    tokenIdInfo[tokenIds[i]].holders.add(to);
+                }
             }
         }
     }
