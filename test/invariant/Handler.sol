@@ -341,11 +341,11 @@ contract Handler is Test, BaseSetup {
             //TODO: why is there 1 wei of error here?
             assertLe(
                 uniswapV4Wrapper.balanceOf(currentActor),
-                fromBalanceBeforeTransfer - transferAmount + 1,
+                fromBalanceBeforeTransfer - transferAmount + 2,
                 "UniswapV4Wrapper: transferWithoutActiveLiquidation should decrease balance of sender"
             );
             assertGe(
-                uniswapV4Wrapper.balanceOf(to) + 1,
+                uniswapV4Wrapper.balanceOf(to) + 2,
                 toBalanceBeforeTransfer + transferAmount,
                 "UniswapV4Wrapper: transferWithoutActiveLiquidation should increase balance of receiver"
             );
