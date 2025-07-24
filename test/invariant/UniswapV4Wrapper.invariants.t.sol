@@ -11,13 +11,15 @@ contract UniswapV4WrapperInvariants is Test {
         handler = new Handler();
         handler.setUp();
 
-        bytes4[] memory selectors = new bytes4[](6);
+        bytes4[] memory selectors = new bytes4[](8);
         selectors[0] = Handler.mintPositionAndWrap.selector;
         selectors[1] = Handler.transferWrappedTokenId.selector;
         selectors[2] = Handler.partialUnwrap.selector;
         selectors[3] = Handler.enableTokenIdAsCollateral.selector;
         selectors[4] = Handler.disableTokenIdAsCollateral.selector;
         selectors[5] = Handler.transferWithoutActiveLiquidation.selector;
+        selectors[6] = Handler.borrowTokenA.selector;
+        selectors[7] = Handler.borrowTokenB.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
