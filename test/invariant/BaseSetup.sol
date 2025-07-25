@@ -50,6 +50,8 @@ import {UniswapMintPositionHelper} from "src/uniswap/periphery/UniswapMintPositi
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WETH} from "lib/euler-price-oracle/lib/solady/src/tokens/WETH.sol";
 
+import {MockUniswapV4Wrapper} from "test/helpers/MockUniswapV4Wrapper.sol";
+
 contract MockReturnsWETH9 {
     address public immutable weth;
 
@@ -93,7 +95,7 @@ contract BaseSetup is Test, Fuzzers {
 
     PoolKey public poolKey;
     PoolId public poolId;
-    UniswapV4Wrapper public uniswapV4Wrapper;
+    MockUniswapV4Wrapper public uniswapV4Wrapper;
     UniswapMintPositionHelper public mintPositionHelper;
 
     uint24 fee = 3000;
@@ -188,10 +190,11 @@ contract BaseSetup is Test, Fuzzers {
         poolManager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
         poolId = poolKey.toId();
 
-        (address uniswapV4WrapperAddress,) =
-            uniswapV4WrapperFactory.createUniswapV4Wrapper(address(oracle), unitOfAccount, poolKey);
+        uniswapV4Wrapper = new MockUniswapV4Wrapper(
+            address(evc), address(positionManager), address(oracle), unitOfAccount, poolKey, address(weth)
+        );
 
-        uniswapV4Wrapper = UniswapV4Wrapper(payable(uniswapV4WrapperAddress));
+        address uniswapV4WrapperAddress = address(uniswapV4Wrapper);
 
         oracle.setPrice(uniswapV4WrapperAddress, unitOfAccount, 1e18); // Set initial price to 1:1
         oracle.setPrice(address(tokenA), unitOfAccount, 1e18); // Set initial price to 1:1
