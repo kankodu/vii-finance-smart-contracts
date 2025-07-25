@@ -378,17 +378,32 @@ contract Handler is Test, BaseSetup {
         }
         uint256 enabledTokenIdsLengthBefore = uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor);
 
-        try uniswapV4Wrapper.disableTokenIdAsCollateral(tokenId) {
-            tokenIdInfo[tokenId].isEnabled[currentActor] = false;
+        uint256 tokenIdBalanceBefore = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
 
-            assertEq(
-                uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor),
-                enabledTokenIdsLengthBefore - 1,
-                "UniswapV4Wrapper: disableTokenIdAsCollateral should decrease total enabled tokenIds"
+        bool shouldDisableTokenIdFail;
+        if (tokenIdBalanceBefore != 0) {
+            shouldDisableTokenIdFail = shouldNextActionFail(
+                currentActor,
+                uniswapV4Wrapper.calculateValueOfTokenId(tokenId, tokenIdBalanceBefore),
+                address(uniswapV4Wrapper)
             );
-        } catch {
-            // If revert, do nothing (expected for some cases)
+
+            if (shouldDisableTokenIdFail) {
+                vm.expectRevert();
+            }
         }
+
+        uniswapV4Wrapper.disableTokenIdAsCollateral(tokenId);
+
+        if (shouldDisableTokenIdFail) return; //if the disable should fail, we can skip the rest of the assertions
+
+        tokenIdInfo[tokenId].isEnabled[currentActor] = false;
+
+        assertEq(
+            uniswapV4Wrapper.totalTokenIdsEnabledBy(currentActor),
+            enabledTokenIdsLengthBefore - 1,
+            "UniswapV4Wrapper: disableTokenIdAsCollateral should decrease total enabled tokenIds"
+        );
     }
 
     function transferWithoutActiveLiquidation(uint256 actorIndexSeed, uint256 toIndexSeed, uint256 transferAmount)
