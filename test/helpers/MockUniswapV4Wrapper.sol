@@ -8,11 +8,11 @@ import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
-import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
-import {console} from "forge-std/console.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     using StateLibrary for IPoolManager;
+    using SafeCast for uint256;
 
     constructor(
         address _evc,
@@ -67,6 +67,33 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         return _total(positionState, tokenId);
     }
 
+    function calculateExactedValueOfTokenIdAfterUnwrap(
+        uint256 tokenId,
+        uint256 unwrapAmount,
+        uint256 balanceBeforeUnwrap
+    ) public view returns (uint256) {
+        PositionState memory positionState = _getPositionState(tokenId);
+        uint128 liquidityToRemove =
+            proportionalShare(positionState.liquidity, unwrapAmount, totalSupply(tokenId)).toUint128();
+
+        positionState.liquidity -= liquidityToRemove;
+
+        (uint256 amount0, uint256 amount1) = _total(positionState, tokenId);
+
+        uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(poolKey.currency0));
+        uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(poolKey.currency1));
+
+        //avoid division by zero
+        if (totalSupply(tokenId) == unwrapAmount) {
+            return 0;
+        }
+        return proportionalShare(
+            amount0InUnitOfAccount + amount1InUnitOfAccount,
+            balanceBeforeUnwrap - unwrapAmount,
+            totalSupply(tokenId) - unwrapAmount
+        );
+    }
+
     //All of tests uses the spot price from the pool instead of the oracle
     function getSqrtRatioX96(address, address, uint256, uint256) public view override returns (uint160 sqrtRatioX96) {
         (sqrtRatioX96,,,) = poolManager.getSlot0(poolKey.toId());
@@ -78,22 +105,5 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         returns (uint160 sqrtRatioX96)
     {
         return super.getSqrtRatioX96(token0, token1, unit0, unit1);
-    }
-
-    function consoleCollateralValueAndLiabilityValue(address account) internal view {
-        address[] memory enabledControllers = evc.getControllers(account);
-        if (enabledControllers.length == 0) return;
-
-        IEVault vault = IEVault(enabledControllers[0]);
-        if (vault.debtOf(account) == 0) return;
-
-        (uint256 collateralValue, uint256 liabilityValue) = vault.accountLiquidity(account, false);
-
-        console.log("collateralValue: %s, liabilityValue: %s", collateralValue, liabilityValue);
-    }
-
-    function transfer(address receiver, uint256 id, uint256 amount) public override returns (bool transferred) {
-        transferred = super.transfer(receiver, id, amount);
-        consoleCollateralValueAndLiabilityValue(_msgSender());
     }
 }

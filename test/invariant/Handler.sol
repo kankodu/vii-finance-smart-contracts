@@ -214,8 +214,6 @@ contract Handler is Test, BaseSetup {
 
         transferAmount = bound(transferAmount, 0, fromBalanceBeforeTransfer);
 
-        console.log("fromBalanceBeforeTransfer: %s, transferAmount: %s", fromBalanceBeforeTransfer, transferAmount);
-
         uint256 tokenIdValueBeforeTransfer =
             uniswapV4Wrapper.calculateValueOfTokenId(tokenId, fromBalanceBeforeTransfer);
 
@@ -223,16 +221,7 @@ contract Handler is Test, BaseSetup {
             uniswapV4Wrapper.calculateValueOfTokenId(tokenId, fromBalanceBeforeTransfer - transferAmount);
 
         //get the value of the tokenId
-        uint256 tokenIdValueToTransfer = tokenIdValueBeforeTransfer - expectTokenIdValueAfterTransfer;
-
-        // //if the value is 0, but transferAmount is not 0 that means the transferAmount is too small
-        // //but this will still reduce the collateral value because of rounding against the user when calculating collateral value
-        // if (
-        //     tokenIdValueToTransfer == 0 && transferAmount != 0
-        //         && fromBalanceBeforeTransfer == uniswapV4Wrapper.FULL_AMOUNT()
-        // ) {
-        //     tokenIdValueToTransfer = 1;
-        // }
+        uint256 tokenIdValueToTransfer = tokenIdValueBeforeTransfer - expectTokenIdValueAfterTransfer; //We are not calculating the amount directly to avoid miscalculation due to rounding error
 
         //if this tokenId is not enabled as collateral then the value being transferred is 0
         if (!tokenIdInfo[tokenId].isEnabled[currentActor]) {
@@ -292,29 +281,48 @@ contract Handler is Test, BaseSetup {
         }
         uint256 tokenId = tokenIds[bound(tokenIdIndexSeed, 0, tokenIds.length - 1)];
 
-        uint256 currentBalance = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
+        uint256 balanceBeforeUnwrap = uniswapV4Wrapper.balanceOf(currentActor, tokenId);
 
-        if (currentBalance == 0) {
+        if (balanceBeforeUnwrap == 0) {
             return; //skip if current actor has no balance
         }
 
-        unwrapAmount = bound(unwrapAmount, 0, currentBalance);
+        unwrapAmount = bound(unwrapAmount, 0, balanceBeforeUnwrap);
 
-        try uniswapV4Wrapper.unwrap(currentActor, tokenId, currentActor, unwrapAmount, "") {
-            //We need to independently find out the amount user spent on the tokenId
-            if (unwrapAmount == currentBalance) {
-                tokenIdsHeldByActor[currentActor].remove(tokenId);
-                tokenIdInfo[tokenId].holders.remove(currentActor);
-            }
+        uint256 tokenIdValueBeforeUnwrap = uniswapV4Wrapper.calculateValueOfTokenId(tokenId, balanceBeforeUnwrap);
 
-            assertEq(
-                uniswapV4Wrapper.balanceOf(currentActor, tokenId),
-                currentBalance - unwrapAmount,
-                "UniswapV4Wrapper: partial unwrap should decrease balance of sender"
-            );
-        } catch {
-            // If revert, do nothing (expected for some cases)
+        uint256 expectTokenIdValueAfterUnwrap =
+            uniswapV4Wrapper.calculateExactedValueOfTokenIdAfterUnwrap(tokenId, unwrapAmount, balanceBeforeUnwrap);
+
+        //get the value of the tokenId
+        uint256 tokenIdValueToTransfer = tokenIdValueBeforeUnwrap - expectTokenIdValueAfterUnwrap; //We are not calculating the amount directly to avoid miscalculation due to rounding error
+
+        //if this tokenId is not enabled as collateral then the value being transferred is 0
+        if (!tokenIdInfo[tokenId].isEnabled[currentActor]) {
+            tokenIdValueToTransfer = 0;
         }
+
+        bool shouldUnwrapFail = shouldNextActionFail(currentActor, tokenIdValueToTransfer, address(uniswapV4Wrapper));
+
+        if (shouldUnwrapFail) {
+            vm.expectRevert();
+        }
+
+        uniswapV4Wrapper.unwrap(currentActor, tokenId, currentActor, unwrapAmount, "");
+
+        if (shouldUnwrapFail) return; //if the unwrap should fail, we can skip the rest of the assertions
+
+        //We need to independently find out the amount user spent on the tokenId
+        if (unwrapAmount == balanceBeforeUnwrap) {
+            tokenIdsHeldByActor[currentActor].remove(tokenId);
+            tokenIdInfo[tokenId].holders.remove(currentActor);
+        }
+
+        assertEq(
+            uniswapV4Wrapper.balanceOf(currentActor, tokenId),
+            balanceBeforeUnwrap - unwrapAmount,
+            "UniswapV4Wrapper: partial unwrap should decrease balance of sender"
+        );
     }
 
     function enableTokenIdAsCollateral(uint256 actorIndexSeed, uint256 tokenIdIndexSeed)
