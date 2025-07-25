@@ -138,6 +138,60 @@ contract Handler is Test, BaseSetup {
         );
     }
 
+    function shouldNextActionFail(address account, uint256 valueToBeTransferred, address collateral)
+        internal
+        view
+        returns (bool)
+    {
+        address[] memory enabledControllers = evc.getControllers(account);
+        if (enabledControllers.length == 0) return false;
+
+        IEVault vault = IEVault(enabledControllers[0]);
+        if (vault.debtOf(account) == 0) return false;
+
+        //get account liquidity
+        address[] memory collaterals = evc.getCollaterals(account);
+
+        //get user balance of collaterals
+        uint256 totalCollateralValueAfterTransfer = 0;
+        for (uint256 i = 0; i < collaterals.length; i++) {
+            uint256 balance = IEVault(collaterals[i]).balanceOf(account);
+            uint256 collateralValue = oracle.getQuote(balance, collaterals[i], unitOfAccount);
+
+            console.log("collateralValue ,valueToBeTransferred: %s, %s", collateralValue, valueToBeTransferred);
+
+            if (collaterals[i] == collateral) {
+                if (collateralValue < valueToBeTransferred) {
+                    return true; //if the collateral value is less than the value to be transferred, the action should fail
+                }
+                collateralValue -= valueToBeTransferred;
+            }
+            uint256 LTVLiquidation = vault.LTVLiquidation(collaterals[i]);
+            collateralValue = collateralValue * LTVLiquidation / 1e4;
+
+            totalCollateralValueAfterTransfer += collateralValue;
+        }
+
+        //get user liability value
+        (uint256 collateralValue, uint256 liabilityValue) = vault.accountLiquidity(account, false);
+
+        console.log(
+            "totalCollateralValueAfterTransfer: %s, liabilityValue: %s",
+            totalCollateralValueAfterTransfer,
+            liabilityValue
+        );
+
+        console.log("collateralValue: %s, liabilityValue: %s", collateralValue, liabilityValue);
+
+        console.log("valueToBeTransferred", valueToBeTransferred);
+
+        if (totalCollateralValueAfterTransfer <= liabilityValue) {
+            return true; //if the total collateral value after transfer is less than the liability value, the action should fail
+        }
+
+        return false;
+    }
+
     function transferWrappedTokenId(
         uint256 actorIndexSeed,
         uint256 toIndexSeed,
@@ -160,42 +214,72 @@ contract Handler is Test, BaseSetup {
 
         transferAmount = bound(transferAmount, 0, fromBalanceBeforeTransfer);
 
-        try uniswapV4Wrapper.transfer(to, tokenId, transferAmount) {
-            //if transfer to self then we make sure the balance does not change
-            if (to == currentActor) {
-                assertEq(
-                    uniswapV4Wrapper.balanceOf(currentActor, tokenId),
-                    fromBalanceBeforeTransfer,
-                    "UniswapV4Wrapper: transfer to self should not change balance"
-                );
-                return; //skip the rest
-            }
+        console.log("fromBalanceBeforeTransfer: %s, transferAmount: %s", fromBalanceBeforeTransfer, transferAmount);
+
+        uint256 tokenIdValueBeforeTransfer =
+            uniswapV4Wrapper.calculateValueOfTokenId(tokenId, fromBalanceBeforeTransfer);
+
+        uint256 expectTokenIdValueAfterTransfer =
+            uniswapV4Wrapper.calculateValueOfTokenId(tokenId, fromBalanceBeforeTransfer - transferAmount);
+
+        //get the value of the tokenId
+        uint256 tokenIdValueToTransfer = tokenIdValueBeforeTransfer - expectTokenIdValueAfterTransfer;
+
+        // //if the value is 0, but transferAmount is not 0 that means the transferAmount is too small
+        // //but this will still reduce the collateral value because of rounding against the user when calculating collateral value
+        // if (
+        //     tokenIdValueToTransfer == 0 && transferAmount != 0
+        //         && fromBalanceBeforeTransfer == uniswapV4Wrapper.FULL_AMOUNT()
+        // ) {
+        //     tokenIdValueToTransfer = 1;
+        // }
+
+        //if this tokenId is not enabled as collateral then the value being transferred is 0
+        if (!tokenIdInfo[tokenId].isEnabled[currentActor]) {
+            tokenIdValueToTransfer = 0;
+        }
+
+        bool shouldTransferFail = shouldNextActionFail(currentActor, tokenIdValueToTransfer, address(uniswapV4Wrapper));
+
+        if (shouldTransferFail && to != currentActor) {
+            vm.expectRevert();
+        }
+
+        uniswapV4Wrapper.transfer(to, tokenId, transferAmount);
+
+        if (shouldTransferFail) return; //if the transfer should fail, we can skip the rest of the assertions
+        //if transfer to self then we make sure the balance does not change
+        if (to == currentActor) {
             assertEq(
                 uniswapV4Wrapper.balanceOf(currentActor, tokenId),
-                fromBalanceBeforeTransfer - transferAmount,
-                "UniswapV4Wrapper: transfer should decrease balance of sender"
+                fromBalanceBeforeTransfer,
+                "UniswapV4Wrapper: transfer to self should not change balance"
             );
-            assertEq(
-                uniswapV4Wrapper.balanceOf(to, tokenId),
-                toBalanceBeforeTransfer + transferAmount,
-                "UniswapV4Wrapper: transfer should increase balance of receiver"
-            );
-
-            if (transferAmount == fromBalanceBeforeTransfer) {
-                tokenIdsHeldByActor[currentActor].remove(tokenId);
-                tokenIdInfo[tokenId].holders.remove(currentActor);
-            } else {
-                //if the transfer amount is less than the full balance, we should not remove the tokenId from the mapping
-                //but we should still add the receiver to the holders
-                if (!tokenIdInfo[tokenId].holders.contains(to)) {
-                    tokenIdInfo[tokenId].holders.add(to);
-                }
-            }
-            tokenIdsHeldByActor[to].add(tokenId);
-            tokenIdInfo[tokenId].holders.add(to);
-        } catch {
-            // If revert, do nothing (expected for some cases)
+            return; //skip the rest
         }
+        assertEq(
+            uniswapV4Wrapper.balanceOf(currentActor, tokenId),
+            fromBalanceBeforeTransfer - transferAmount,
+            "UniswapV4Wrapper: transfer should decrease balance of sender"
+        );
+        assertEq(
+            uniswapV4Wrapper.balanceOf(to, tokenId),
+            toBalanceBeforeTransfer + transferAmount,
+            "UniswapV4Wrapper: transfer should increase balance of receiver"
+        );
+
+        if (transferAmount == fromBalanceBeforeTransfer) {
+            tokenIdsHeldByActor[currentActor].remove(tokenId);
+            tokenIdInfo[tokenId].holders.remove(currentActor);
+        } else {
+            //if the transfer amount is less than the full balance, we should not remove the tokenId from the mapping
+            //but we should still add the receiver to the holders
+            if (!tokenIdInfo[tokenId].holders.contains(to)) {
+                tokenIdInfo[tokenId].holders.add(to);
+            }
+        }
+        tokenIdsHeldByActor[to].add(tokenId);
+        tokenIdInfo[tokenId].holders.add(to);
     }
 
     function partialUnwrap(uint256 actorIndexSeed, uint256 tokenIdIndexSeed, uint256 unwrapAmount)

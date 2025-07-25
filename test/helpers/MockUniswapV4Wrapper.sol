@@ -8,6 +8,8 @@ import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ActionConstants} from "lib/v4-periphery/src/libraries/ActionConstants.sol";
+import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
+import {console} from "forge-std/console.sol";
 
 contract MockUniswapV4Wrapper is UniswapV4Wrapper {
     using StateLibrary for IPoolManager;
@@ -76,5 +78,22 @@ contract MockUniswapV4Wrapper is UniswapV4Wrapper {
         returns (uint160 sqrtRatioX96)
     {
         return super.getSqrtRatioX96(token0, token1, unit0, unit1);
+    }
+
+    function consoleCollateralValueAndLiabilityValue(address account) internal view {
+        address[] memory enabledControllers = evc.getControllers(account);
+        if (enabledControllers.length == 0) return;
+
+        IEVault vault = IEVault(enabledControllers[0]);
+        if (vault.debtOf(account) == 0) return;
+
+        (uint256 collateralValue, uint256 liabilityValue) = vault.accountLiquidity(account, false);
+
+        console.log("collateralValue: %s, liabilityValue: %s", collateralValue, liabilityValue);
+    }
+
+    function transfer(address receiver, uint256 id, uint256 amount) public override returns (bool transferred) {
+        transferred = super.transfer(receiver, id, amount);
+        consoleCollateralValueAndLiabilityValue(_msgSender());
     }
 }
