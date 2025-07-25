@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {Handler, TokenIdInfo} from "test/invariant/Handler.sol";
+import {IEVault} from "lib/euler-vault-kit/src/EVault/IEVault.sol";
 
 contract UniswapV4WrapperInvariants is Test {
     Handler public handler;
@@ -55,6 +56,22 @@ contract UniswapV4WrapperInvariants is Test {
             }
             uint256 total6909Supply = handler.uniswapV4Wrapper().totalSupply(tokenId);
             assertEq(totalBalance, total6909Supply, "Total 6909 supply does not equal sum of balances");
+        }
+    }
+
+    function invariant_liquidity() public view {
+        for (uint256 i = 0; i < handler.actorsLength(); i++) {
+            address actor = handler.actors(i);
+
+            address[] memory enabledControllers = handler.evc().getControllers(actor);
+            if (enabledControllers.length == 0) return;
+
+            IEVault vault = IEVault(enabledControllers[0]);
+            if (vault.debtOf(actor) == 0) return;
+
+            (uint256 collateralValue, uint256 liabilityValue) = vault.accountLiquidity(actor, false);
+
+            assertLt(liabilityValue, collateralValue, "Liability value should be less than collateral value");
         }
     }
 }
