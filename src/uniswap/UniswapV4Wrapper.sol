@@ -264,7 +264,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     function _getCurrencyAddress(Currency currency) internal view returns (address) {
-        return currency.isAddressZero() ? weth : address(uint160(currency.toId()));
+        return currency.isAddressZero() ? weth : Currency.unwrap(currency);
     }
 
     /// @notice Allows the contract to receive ETH when `currency0` is the native ETH (address(0))

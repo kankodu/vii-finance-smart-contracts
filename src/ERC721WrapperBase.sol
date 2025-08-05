@@ -7,12 +7,14 @@ import {ERC6909TokenSupply} from
 import {EnumerableSet} from "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
 import {Context} from "lib/openzeppelin-contracts/contracts/utils/Context.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
-import {EVCUtil} from "lib/ethereum-vault-connector/src/utils/EVCUtil.sol";
+import {EVCUtil} from "ethereum-vault-connector//utils/EVCUtil.sol";
 import {IPriceOracle} from "src/interfaces/IPriceOracle.sol";
 import {IERC721WrapperBase} from "src/interfaces/IERC721WrapperBase.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeCast} from "lib/v4-periphery/lib/v4-core/src/libraries/SafeCast.sol";
+import {IEVault} from "lib/euler-interfaces/interfaces/IEVault.sol";
+import {console} from "forge-std/console.sol";
 
 abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721WrapperBase {
     uint256 public constant FULL_AMOUNT = 1e36;
@@ -71,6 +73,18 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         _settleFullUnwrap(tokenId, to);
     }
 
+    function consoleCollateralValueAndLiabilityValue(address account) internal view {
+        address[] memory enabledControllers = evc.getControllers(account);
+        if (enabledControllers.length == 0) return;
+
+        IEVault vault = IEVault(enabledControllers[0]);
+        if (vault.debtOf(account) == 0) return;
+
+        (uint256 collateralValue, uint256 liabilityValue) = vault.accountLiquidity(account, false);
+
+        console.log("collateralValue: %s, liabilityValue: %s", collateralValue, liabilityValue);
+    }
+
     function unwrap(address from, uint256 tokenId, address to, uint256 amount, bytes calldata extraData)
         external
         callThroughEVC
@@ -78,6 +92,8 @@ abstract contract ERC721WrapperBase is ERC6909TokenSupply, EVCUtil, IERC721Wrapp
         uint256 totalSupplyOfTokenId = totalSupply(tokenId);
         _burnFrom(from, tokenId, amount);
         _unwrap(to, tokenId, totalSupplyOfTokenId, amount, extraData);
+
+        consoleCollateralValueAndLiabilityValue(from);
     }
 
     /// @notice For regular EVK vaults, it transfers the specified amount of vault shares from the sender to the receiver
