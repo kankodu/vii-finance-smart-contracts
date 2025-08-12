@@ -190,6 +190,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     }
 
     /// @notice Calculates pending fees for a position
+    /// @dev For pools with the yield harvesting hook, this will under-calculate the pending fees because it does not account for interest fees that are pending and yet to be harvested.
+    /// @dev We expect this miscalculation to be minimal, as a healthy swap frequency should ensure that the amount of unharvested pending interest remains low.
     /// @param positionState The position state
     /// @return feesOwed0 Pending fees for token0
     /// @return feesOwed1 Pending fees for token1
