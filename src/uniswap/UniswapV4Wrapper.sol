@@ -266,11 +266,6 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         amount1Total = principalAmount1 + pendingFees1 + tokensOwed[tokenId].fees1Owed;
     }
 
-    function _accumulateFees(uint256 tokenId, uint256 fees0, uint256 fees1) internal {
-        tokensOwed[tokenId].fees0Owed += fees0;
-        tokensOwed[tokenId].fees1Owed += fees1;
-    }
-
     function _decodeExtraData(bytes calldata extraData)
         internal
         view
