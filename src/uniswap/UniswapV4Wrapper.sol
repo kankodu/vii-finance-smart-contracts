@@ -31,6 +31,9 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
     uint256 public immutable unit0;
     uint256 public immutable unit1;
 
+    Currency public immutable currency0;
+    Currency public immutable currency1;
+
     PoolKey public poolKey;
     mapping(uint256 tokenId => TokensOwed) public tokensOwed;
 
@@ -66,6 +69,9 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         PoolKey memory _poolKey,
         address _weth
     ) ERC721WrapperBase(_evc, _positionManager, _oracle, _unitOfAccount) {
+        currency0 = _poolKey.currency0;
+        currency1 = _poolKey.currency1;
+
         poolKey = _poolKey;
         poolId = _poolKey.toId();
         poolManager = IPositionManager(address(_positionManager)).poolManager();
@@ -75,8 +81,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
             weth = _weth;
         }
 
-        unit0 = 10 ** _getDecimals(_getCurrencyAddress(poolKey.currency0));
-        unit1 = 10 ** _getDecimals(_getCurrencyAddress(poolKey.currency1));
+        unit0 = 10 ** _getDecimals(_getCurrencyAddress(_poolKey.currency0));
+        unit1 = 10 ** _getDecimals(_getCurrencyAddress(_poolKey.currency1));
     }
 
     /// @notice Validates that the position belongs to the pool that this wrapper is associated with
@@ -129,8 +135,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         tokensOwed[tokenId] = feesOwed;
 
-        poolKey.currency1.transfer(to, amount1 + fees1ToSend);
-        poolKey.currency0.transfer(to, amount0 + fees0ToSend);
+        currency1.transfer(to, amount1 + fees1ToSend);
+        currency0.transfer(to, amount0 + fees0ToSend);
     }
 
     function _settleFullUnwrap(uint256 tokenId, address to) internal override {
@@ -138,10 +144,10 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         uint256 fees1ToSend = tokensOwed[tokenId].fees1Owed;
         delete tokensOwed[tokenId];
         if (fees1ToSend != 0) {
-            poolKey.currency1.transfer(to, fees1ToSend);
+            currency1.transfer(to, fees1ToSend);
         }
         if (fees0ToSend != 0) {
-            poolKey.currency0.transfer(to, fees0ToSend);
+            currency0.transfer(to, fees0ToSend);
         }
     }
 
@@ -154,8 +160,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         (uint256 amount0, uint256 amount1) = _total(positionState, tokenId);
 
-        uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(poolKey.currency0));
-        uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(poolKey.currency1));
+        uint256 amount0InUnitOfAccount = getQuote(amount0, _getCurrencyAddress(currency0));
+        uint256 amount1InUnitOfAccount = getQuote(amount1, _getCurrencyAddress(currency1));
 
         return proportionalShare(amount0InUnitOfAccount + amount1InUnitOfAccount, amount, totalSupply(tokenId));
     }
@@ -183,9 +189,7 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
             liquidity: liquidity,
             feeGrowthInside0LastX128: feeGrowthInside0LastX128,
             feeGrowthInside1LastX128: feeGrowthInside1LastX128,
-            sqrtRatioX96: getSqrtRatioX96(
-                _getCurrencyAddress(poolKey.currency0), _getCurrencyAddress(poolKey.currency1), unit0, unit1
-            )
+            sqrtRatioX96: getSqrtRatioX96(_getCurrencyAddress(currency0), _getCurrencyAddress(currency1), unit0, unit1)
         });
     }
 
@@ -235,8 +239,8 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
         internal
         returns (uint256 amount0Received, uint256 amount1Received)
     {
-        uint256 currency0BalanceBefore = poolKey.currency0.balanceOfSelf();
-        uint256 currency1BalanceBefore = poolKey.currency1.balanceOfSelf();
+        uint256 currency0BalanceBefore = currency0.balanceOfSelf();
+        uint256 currency1BalanceBefore = currency1.balanceOfSelf();
 
         bytes memory actions = new bytes(2);
         actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
@@ -246,12 +250,12 @@ contract UniswapV4Wrapper is ERC721WrapperBase {
 
         bytes[] memory params = new bytes[](2);
         params[0] = abi.encode(tokenId, liquidity, amount0Min, amount1Min, bytes(""));
-        params[1] = abi.encode(poolKey.currency0, poolKey.currency1, recipient);
+        params[1] = abi.encode(currency0, currency1, recipient);
 
         IPositionManager(address(underlying)).modifyLiquidities(abi.encode(actions, params), deadline);
 
-        amount0Received = poolKey.currency0.balanceOfSelf() - currency0BalanceBefore;
-        amount1Received = poolKey.currency1.balanceOfSelf() - currency1BalanceBefore;
+        amount0Received = currency0.balanceOfSelf() - currency0BalanceBefore;
+        amount1Received = currency1.balanceOfSelf() - currency1BalanceBefore;
     }
 
     function _total(PositionState memory positionState, uint256 tokenId)
